@@ -65,7 +65,7 @@ esptool.py --chip esp32 --port COMx --baud 460800 write_flash -z \
 
 Replace *COMx* with your actual port (COM3, /dev/ttyUSB0, etc.). If using the pre-compiled esptool.exe version on windows, you will need to type the entire command on one line:
 ```
-esptool --chip esp32 --port COM3 --baud 460800 write_flash -z 0x1000 Departure_Board_ESP32.ino.bootloader.bin 0xe000 Departure_Board_ESP32.boot_app0.bin 0x8000 Departure_Board_ESP32.ino.partitions.bin 0x10000 Departure_Board_ESP32.ino.bin
+esptool --chip esp32 --port COM3 --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
 ```
 
 Subsequent updates can be carried out automatically over-the-air or you can manually update from the Web GUI with just the firmware.bin file.
