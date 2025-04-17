@@ -94,7 +94,7 @@ A few other potentially useful urls have been implemented:
 - **/reboot** - restarts the ESP32.
 - **/erasewifi** - deletes the stored WiFi credentials and restarts in WiFiManager mode (useful to change WiFi network).
 - **/factoryreset** - deletes all configuration information, api keys and WiFi credentials. The entire setup process will need to be repeated.
-- **/update** - for manual firmware updates. Download the latest binary from the [releases](https://github.com/gadec-uk/departures-board/releases). Only the **firmware.bin** file should be uploaded via */upgrade*. The other .bin files are not used for upgrades.
+- **/update** - for manual firmware updates. Download the latest binary from the [releases](https://github.com/gadec-uk/departures-board/releases). Only the **firmware.bin** file should be uploaded via */update*. The other .bin files are not used for upgrades.
 
 These endpoints are only really useful for debugging/developers:
 - **/info** - displays some basic information about the current running state.
