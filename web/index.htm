@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-3-typeahead/4.0.2/bootstrap3-typeahead.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="favicon.png">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <title>Departures Board</title>
+</head>
+<body>
+  <div style="width: min(90%, 500px); margin: 0 auto; padding: 0 5px;">
+    <form id="formsettings">
+      <fieldset>
+        <legend style="text-align: center;">Departures Board Setup</legend>
+
+        <div class="form-group">
+          <label class="control-label" for="searchName">Station</label>
+          <input id="searchName" type="text" placeholder="Type the station name" class="form-control input-md typeahead">
+        </div>
+
+        <div class="form-group">
+          <label class="control-label" for="brightness">Brightness</label>
+          <input type="range" min="1" max="255" value="50" class="form-control" id="brightness">
+          <span class="help-block">Lowering the brightness will help prevent burn-in.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="control-label">Options</label>
+          <div class="checkbox">
+            <label><input type="checkbox" id="showDate"> Show the date on screen</label>
+          </div>
+          <div class="checkbox">
+            <label><input type="checkbox" id="enableBuses"> Include Bus services</label>
+          </div>
+          <div class="checkbox">
+            <label><input type="checkbox" id="enableWeather"> Include current weather at station location</label>
+          </div>
+          <div class="checkbox">
+            <label><input type="checkbox" id="enableFirmware"> Enable automatic firmware updates at startup</label>
+          </div>
+          <div class="checkbox">
+            <label><input type="checkbox" id="enableSleep"> Enable overnight sleep mode (screensaver)</label>
+          </div>
+        </div>
+
+        <div class="form-group" id="sleepTimeSelectors">
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label for="sleepStart">Sleep start hour</label>
+              <select id="sleepStart" class="form-control" disabled>
+                <option value="0">0:00</option>
+                <option value="1">1:00</option>
+                <option value="2">2:00</option>
+                <option value="3">3:00</option>
+                <option value="4">4:00</option>
+                <option value="5">5:00</option>
+                <option value="6">6:00</option>
+                <option value="7">7:00</option>
+                <option value="8">8:00</option>
+                <option value="9">9:00</option>
+                <option value="10">10:00</option>
+                <option value="11">11:00</option>
+                <option value="12">12:00</option>
+                <option value="13">13:00</option>
+                <option value="14">14:00</option>
+                <option value="15">15:00</option>
+                <option value="16">16:00</option>
+                <option value="17">17:00</option>
+                <option value="18">18:00</option>
+                <option value="19">19:00</option>
+                <option value="20">20:00</option>
+                <option value="21">21:00</option>
+                <option value="22">22:00</option>
+                <option value="23">23:00</option>
+              </select>
+            </div>
+            <div style="flex: 1;">
+              <label for="sleepEnd">Sleep end hour</label>
+              <select id="sleepEnd" class="form-control" disabled>
+                <option value="0">0:00</option>
+                <option value="1">1:00</option>
+                <option value="2">2:00</option>
+                <option value="3">3:00</option>
+                <option value="4">4:00</option>
+                <option value="5">5:00</option>
+                <option value="6">6:00</option>
+                <option value="7">7:00</option>
+                <option value="8">8:00</option>
+                <option value="9">9:00</option>
+                <option value="10">10:00</option>
+                <option value="11">11:00</option>
+                <option value="12">12:00</option>
+                <option value="13">13:00</option>
+                <option value="14">14:00</option>
+                <option value="15">15:00</option>
+                <option value="16">16:00</option>
+                <option value="17">17:00</option>
+                <option value="18">18:00</option>
+                <option value="19">19:00</option>
+                <option value="20">20:00</option>
+                <option value="21">21:00</option>
+                <option value="22">22:00</option>
+                <option value="23">23:00</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="text-align: center;">
+          <button id="save" name="save" class="btn btn-primary" type="submit">Save Settings</button>
+          <span class="help-block"><br>You can update your API tokens <a href="/keys.htm">here</a>.</span>
+        </div>
+
+        <div class="form-group" style="padding-top: 5px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="flex: 1; text-align: left;">
+              <span class="help-block" id="fwinfo" style="margin: 0;"></span>
+            </div>
+            <div>
+              <a href="https://www.nationalrail.co.uk" target="_blank"><img src="/nrelogo.webp" alt="Logo" style="max-height: 40px;"></a>
+            </div>
+          </div>
+        </div>
+
+      </fieldset>
+    </form>
+  </div>
+
+  <script>
+    const appState = {
+      stationSelected: false,
+      stationName: "",
+      stationCRS: "",
+      stationLatitude: 0,
+      stationLongitude: 0,
+      firmwareVersion: "",
+      jsonSettings: {},
+    };
+
+    const elements = {
+      form: document.getElementById("formsettings"),
+      searchName: document.getElementById("searchName"),
+      brightness: document.getElementById("brightness"),
+      enableSleep: document.getElementById("enableSleep"),
+      sleepStart: document.getElementById("sleepStart"),
+      sleepEnd: document.getElementById("sleepEnd"),
+      saveButton: document.getElementById("save"),
+      fwinfo: document.getElementById("fwinfo"),
+    };
+
+    const substringMatcher = () => {
+      return (q, cb) => {
+        if (q.length > 2) {
+          $.ajax({
+            url: '/stationpicker?q=' + encodeURIComponent(q),
+            method: 'GET',
+            success: function(data) {
+              const stations = data.payload.stations.filter(s => s.kbState !== 0);
+              cb(stations);
+            },
+            error: function(xhr, status, error) {
+              console.error(`Station fetch failed: ${status} - ${error}`);
+              cb([]);
+            }
+          });
+        } else {
+          cb([]);
+        }
+      };
+    };
+
+    $(elements.searchName).typeahead({
+      name: 'stations',
+      source: substringMatcher(),
+      updater: function(item) {
+        handleStationSelected(item);
+        return item;
+      }
+    });
+
+    // Prevent default submit and call handleSave only once
+    elements.form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      handleSave();
+    });
+
+    elements.searchName.addEventListener("focus", () => elements.searchName.select());
+    elements.searchName.addEventListener("blur", () => setTimeout(handleStationLostFocus, 500));
+    elements.enableSleep.addEventListener("change", toggleSleepSelectors);
+    elements.brightness.addEventListener("change", handleBrightnessChange);
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await fetchConfig();
+      await fetchFirmware();
+      await checkWeatherToken();
+    });
+
+    async function fetchConfig() {
+      try {
+        const response = await fetch('/config.json');
+        if (!response.ok) throw new Error("Failed to fetch config.");
+        appState.jsonSettings = await response.json();
+        loadSettings();
+      } catch (err) {
+        alert('Error loading config: ${err.message}');
+      }
+    }
+
+    async function fetchFirmware() {
+      try {
+        const response = await fetch('/firmware');
+        if (!response.ok) return;
+        const contentType = response.headers.get("Content-Type");
+        if (contentType === "application/json") {
+          const jsonInfo = await response.json();
+          appState.firmwareVersion = jsonInfo.firmware || "";
+          elements.fwinfo.innerHTML = '<a href="https://github.com/gadec-uk/departures-board" target="_blank">Firmware: ' + appState.firmwareVersion + '</a>';
+        }
+      } catch (err) {
+        console.error("Firmware fetch error:", err);
+      }
+    }
+
+    async function checkWeatherToken() {
+      try {
+        const response = await fetch('/apikeys.json');
+        const data = await response.json();
+        if (!data.owmToken) {
+          $('#enableWeather').prop('disabled', true).prop('checked', false);
+        }
+      } catch (err) {
+        console.warn("Could not check weather token.");
+      }
+    }
+
+    function toggleSleepSelectors() {
+      const enabled = elements.enableSleep.checked;
+      elements.sleepStart.disabled = !enabled;
+      elements.sleepEnd.disabled = !enabled;
+    }
+
+    function loadSettings() {
+      const s = appState.jsonSettings;
+      appState.stationName = s.station || "";
+      appState.stationCRS = s.crs || "";
+
+      elements.searchName.value = appState.stationName;
+      elements.brightness.value = s.brightness || 50;
+
+      setCheckbox("enableSleep", s.sleep);
+      setCheckbox("showDate", s.showDate);
+      setCheckbox("enableBuses", s.showBus);
+      setCheckbox("enableFirmware", s.update);
+      setCheckbox("enableWeather", s.weather);
+
+      $('#sleepStart').val(s.sleepStarts);
+      $('#sleepEnd').val(s.sleepEnds);
+
+      toggleSleepSelectors();
+
+      if (!appState.stationName) {
+        elements.saveButton.setAttribute("disabled", true);
+      }
+    }
+
+    function setCheckbox(id, value) {
+      document.getElementById(id).checked = !!value;
+    }
+
+    function handleStationSelected(item) {
+      appState.stationSelected = true;
+      appState.stationName = item.name;
+      appState.stationCRS = item.crsCode;
+      appState.stationLatitude = item.latitude;
+      appState.stationLongitude = item.longitude;
+
+      if (item.classification === "LONDON_UNDERGROUND") {
+        elements.saveButton.setAttribute("disabled", true);
+      } else {
+        elements.saveButton.removeAttribute("disabled");
+      }
+
+    }
+
+    function handleStationLostFocus() {
+      if (!appState.stationSelected) {
+        elements.searchName.value = appState.stationName;
+      } else {
+        appState.stationSelected = false;
+      }
+    }
+
+    function handleBrightnessChange() {
+      const brightness = this.value;
+      appState.jsonSettings.brightness = brightness;
+      fetch(`/brightness?b=${brightness}`);
+    }
+
+    async function handleSave() {
+      const s = appState.jsonSettings;
+      s.station = appState.stationName;
+      s.crs = appState.stationCRS;
+      s.lat = appState.stationLatitude;
+      s.lon = appState.stationLongitude;
+      s.brightness = elements.brightness.value;
+      s.sleep = isChecked("enableSleep");
+      s.showDate = isChecked("showDate");
+      s.showBus = isChecked("enableBuses");
+      s.update = isChecked("enableFirmware");
+      s.weather = isChecked("enableWeather");
+      s.sleepStarts = parseInt(elements.sleepStart.value);
+      s.sleepEnds = parseInt(elements.sleepEnd.value);
+
+      try {
+        const response = await fetch('/savesettings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(s)
+        });
+
+        const text = await response.text();
+        alert(text); // Show server response
+
+      } catch (err) {
+        alert(`Failed to save settings: ${err.message}`);
+      }
+    }
+
+    function isChecked(id) {
+      return document.getElementById(id).checked;
+    }
+  </script>
+
+</body>
+</html>
