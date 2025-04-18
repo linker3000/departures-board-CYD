@@ -1,6 +1,6 @@
 # departures-board [![License Badge](https://img.shields.io/badge/BY--NC--SA%204.0%20License-grey?style=flat&logo=creativecommons&logoColor=white)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API. This implementation uses 3.12" OLED display panel with SSD1322 display controller on-board. STL files are also provided for 3D printing the custom desktop case.
+This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API. This implementation uses a 3.12" OLED display panel with SSD1322 display controller on-board. STL files are also provided for 3D printing the custom desktop case.
 
 ## Features
 * All processing is done onboard by the ESP32 processor
@@ -21,7 +21,7 @@ This short video demonstrates the Departures Board in action...
 ### What you'll need
 
 1. An ESP32 D1 Mini board (or clone). Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
-2. A 3.12" 256x64 OLED Display Panel with SSD1322 display controller on-board. Cost around £12 from [AliExpress](https://www.aliexpress.com/item/1005005985371717.html).
+2. A 3.12" 256x64 OLED Display Panel with SSD1322 display controller onboard. Cost around £12 from [AliExpress](https://www.aliexpress.com/item/1005005985371717.html).
 3. A 3D printed case using the [STL](https://github.com/gadec-uk/departures-board/tree/main/stl) files provided. If you don't have a 3D printer, there are several services you can use to get one printed.
 4. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
 5. Optionally, an OpenWeather Map API token to display weather conditions at the selected station (these are also free, sign-up for a free developer account [here](https://home.openweathermap.org/users/sign_up)).
