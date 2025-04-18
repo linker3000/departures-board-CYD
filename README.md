@@ -1,6 +1,6 @@
 # departures-board [![License Badge](https://img.shields.io/badge/BY--NC--SA%204.0%20License-grey?style=flat&logo=creativecommons&logoColor=white)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API. This implementation uses a 3.12" OLED display panel with SSD1322 display controller on-board. STL files are also provided for 3D printing the custom desktop case.
+This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API. This implementation uses a 3.12" OLED display panel with SSD1322 display controller onboard. STL files are also provided for 3D printing the custom desktop case.
 
 ## Features
 * All processing is done onboard by the ESP32 processor
