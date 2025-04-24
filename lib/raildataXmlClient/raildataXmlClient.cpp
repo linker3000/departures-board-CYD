@@ -1,12 +1,12 @@
 /*
  * Departures Board (c) 2025 Gadec Software
- * 
+ *
  * raildataXmlClient Library
- * 
+ *
  * https://github.com/gadec-uk/departures-board
- * 
+ *
  * This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
- * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/ 
+ * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/
  */
 
 #include <raildataXmlClient.h>
@@ -18,7 +18,7 @@ raildataXmlClient::raildataXmlClient() {
 }
 
 // Custom comparator function to compare time strings
-bool compareTimes(const rdService& a, const rdService& b) {
+bool raildataXmlClient::compareTimes(const rdiService& a, const rdiService& b) {
     // Convert time strings to integers for comparison
     int hour1, minute1, hour2, minute2;
     sscanf(a.sTime, "%d:%d", &hour1, &minute1);
@@ -26,7 +26,10 @@ bool compareTimes(const rdService& a, const rdService& b) {
 
     // Compare hours first
     if (hour1 != hour2) {
-        return hour1 < hour2;
+        // Fudge for rollover at midnight
+        if (hour1 < 2 && hour2 > 20) return false;
+        if (hour2 < 2 && hour1 > 20) return true;
+        else return hour1 < hour2;
     }
     // If hours are equal, compare minutes
     return minute1 < minute2;
@@ -95,8 +98,8 @@ int raildataXmlClient::init(const char *wsdlHost, const char *wsdlAPI, rdCallbac
     grandParentTagName = "";
     parentTagName = "";
     tagName = "";
-    tagLevel = 0;     
-   
+    tagLevel = 0;
+
     while((httpsClient.available() || httpsClient.connected()) && (millis() < dataSendTimeout)) {
       while (httpsClient.available()) {
         c = httpsClient.read();
@@ -175,8 +178,8 @@ void raildataXmlClient::pruneFromPhrase(char* input, const char* target) {
 // Function to ensure there's one and only one fullstop at the end of messages.
 //
 void raildataXmlClient::fixFullStop(char *input) {
-    if (strlen(input)) {
-        while (strlen(input) && (input[strlen(input)-1] == '.' || input[strlen(input)-1] == ' ')) input[strlen(input)-1] = '\0'; // Remove all trailing full stops
+    if (input[0]) {
+        while (input[0] && (input[strlen(input)-1] == '.' || input[strlen(input)-1] == ' ')) input[strlen(input)-1] = '\0'; // Remove all trailing full stops
         if (strlen(input) < MAXMESSAGESIZE-1) strcat(input,".");  // Add a single fullstop
     }
 }
@@ -184,18 +187,18 @@ void raildataXmlClient::fixFullStop(char *input) {
 //
 // Updates the Departure Board data from the SOAP API
 //
-int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices) {
+int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode) {
 
     unsigned long perfTimer=millis();
     lastErrorMessage = F("None");
-     
+
     // Reset the counters
     xStation.numServices=0;
     xStation.numMessages=0;
     xStation.platformAvailable=false;
     addedStopLocation = false;
     strcpy(xStation.location,"");
-   
+
     for (int i=0;i<MAXBOARDSERVICES;i++) {
       strcpy(xStation.service[i].sTime,"");
       strcpy(xStation.service[i].destination,"");
@@ -220,7 +223,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
     httpsClient.setInsecure();
     httpsClient.setTimeout(15000);
     httpsClient.setNoDelay(false);
-        
+
     int retryCounter=0; //retry counter
     while((!httpsClient.connect(soapHost, 443)) && (retryCounter < 30)) {
         delay(100);
@@ -231,8 +234,10 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
         return UPD_NO_RESPONSE;
     }
 
+    int reqRows = MAXBOARDSERVICES;
+    if (callingCrsCode[0]) reqRows = 10;   // Request maximum services if we're filtering
     String data = F("<soap-env:Envelope xmlns:soap-env=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap-env:Header><ns0:AccessToken xmlns:ns0=\"http://thalesgroup.com/RTTI/2013-11-28/Token/types\"><ns0:TokenValue>");
-    data += String(customToken) + F("</ns0:TokenValue></ns0:AccessToken></soap-env:Header><soap-env:Body><ns0:GetDepBoardWithDetailsRequest xmlns:ns0=\"http://thalesgroup.com/RTTI/2021-11-01/ldb/\"><ns0:numRows>") + String(MAXBOARDSERVICES) + F("</ns0:numRows><ns0:crs>");
+    data += String(customToken) + F("</ns0:TokenValue></ns0:AccessToken></soap-env:Header><soap-env:Body><ns0:GetDepBoardWithDetailsRequest xmlns:ns0=\"http://thalesgroup.com/RTTI/2021-11-01/ldb/\"><ns0:numRows>") + String(reqRows) + F("</ns0:numRows><ns0:crs>");
     data += String(crsCode) + F("</ns0:crs></ns0:GetDepBoardWithDetailsRequest></soap-env:Body></soap-env:Envelope>");
 
     httpsClient.print("POST " + String(soapAPI) + F(" HTTP/1.1\r\n") +
@@ -240,7 +245,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
       F("Content-Type: text/xml;charset=UTF-8\r\n") +
       F("Connection: close\r\n") +
       F("Content-Length: ") + String(data.length()) + F("\r\n\r\n") +
-      data + F("\r\n\r\n")); 
+      data + F("\r\n\r\n"));
 
     Xcb(1,0);   // progress callback
     unsigned long ticker = millis()+800;
@@ -286,12 +291,20 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
     grandParentTagName = "";
     parentTagName = "";
     tagName = "";
-    tagLevel = 0; 
+    tagLevel = 0;
     loadingWDSL=false;
     long dataReceived = 0;
+    if (callingCrsCode[0]) {
+        strcpy(filterCrs,callingCrsCode);
+        filter=true;
+    } else {
+        strcpy(filterCrs,"");
+        filter=false;
+    }
+    keepRoute=false;
 
     char c;
-    dataSendTimeout = millis() + 10000UL;
+    dataSendTimeout = millis() + 12000UL;
     perfTimer=millis(); // Reset the data load timer
 
     while((httpsClient.available() || httpsClient.connected()) && (millis() < dataSendTimeout)) {
@@ -320,16 +333,23 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
         return UPD_TIMEOUT;
     }
 
-    if (!strlen(xStation.location)) {
+    if (!xStation.location[0]) {
         // We didn't get a location back so probably failed
         lastErrorMessage = F("Data incomplete - no location in response");
         return UPD_DATA_ERROR;
     }
+    if (filter && !keepRoute && xStation.numServices) xStation.numServices--;   // Last route added needs filtering out
 
     sanitiseData();
     if (includeBusServices) {
-        size_t arraySize = xStation.numServices;
-        std::sort(xStation.service, xStation.service+arraySize,compareTimes);
+        // Look for any included bus services, and sort if found
+        for (int i=0;i<xStation.numServices;i++) {
+            if (xStation.service[i].serviceType == BUS) {
+                size_t arraySize = xStation.numServices;
+                std::sort(xStation.service, xStation.service+arraySize,compareTimes);
+                break;
+            }
+        }
     } else {
         // Go through and delete any bus services
         int i=0;
@@ -337,7 +357,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
             // Remove any bus services
             if (xStation.service[i].serviceType == BUS) deleteService(i);
             else i++;
-        }        
+        }
     }
 
     bool noUpdate = true;
@@ -353,7 +373,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
             }
             if (noUpdate) {
                 for (int i=0;i<xStation.numServices;i++) {
-                    if (strcmp(station->service[i].sTime, xStation.service[i].sTime) || strcmp(station->service[i].destination, xStation.service[i].destination) || strcmp(station->service[i].via, xStation.service[i].via) || strcmp(station->service[i].origin, xStation.service[i].origin) || strcmp(station->service[i].etd, xStation.service[i].etd) || strcmp(station->service[i].platform, xStation.service[i].platform) || strcmp(station->service[i].opco, xStation.service[i].opco) || strcmp(station->service[i].calling, xStation.service[i].calling) || strcmp(station->service[i].serviceMessage, xStation.service[i].serviceMessage)) {
+                    if (strcmp(station->service[i].sTime, xStation.service[i].sTime) || strcmp(station->service[i].destination, xStation.service[i].destination) || strcmp(station->service[i].via, xStation.service[i].via) || strcmp(station->service[i].origin, xStation.service[i].origin) || strcmp(station->service[i].etd, xStation.service[i].etd) || strcmp(station->service[i].platform, xStation.service[i].platform) || strcmp(station->service[i].serviceMessage, xStation.service[i].serviceMessage)) {
                         noUpdate=false;
                         break;
                     }
@@ -388,12 +408,13 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
             station->service[i].trainLength = xStation.service[i].trainLength;
             station->service[i].classesAvailable = xStation.service[i].classesAvailable;
             strcpy(station->service[i].opco, xStation.service[i].opco);
-            strcpy(station->service[i].calling, xStation.service[i].calling);
+            //strcpy(station->service[i].calling, xStation.service[i].calling);
             strcpy(station->service[i].serviceMessage, xStation.service[i].serviceMessage);
             station->service[i].serviceType = xStation.service[i].serviceType;
         }
+        if (xStation.numServices) strcpy(station->calling,xStation.service[0].calling);
     }
-    
+
     Xcb(3,xStation.numServices);
     if (noUpdate) {
         lastErrorMessage = "Success (No Changes) - data [" + String(dataReceived) + F("] load took ") + String(millis()-perfTimer) + F("ms");
@@ -423,14 +444,14 @@ void raildataXmlClient::deleteService(int x) {
 }
 
 void raildataXmlClient::sanitiseData() {
-  
+
   int i=0;
   while (i<xStation.numServices) {
     // Remove any services that are missing destinations/std/etd
-    if (strlen(xStation.service[i].destination)==0 || strlen(xStation.service[i].etd)==0 || strlen(xStation.service[i].sTime)==0) deleteService(i);
+    if (!xStation.service[i].destination[0] || !xStation.service[i].etd[0] || !xStation.service[i].sTime[0]) deleteService(i);
     else i++;
   }
-  
+
   for (int i=0;i<xStation.numServices;i++) {
     // first change any &lt; &gt;
     removeHtmlTags(xStation.service[i].destination);
@@ -438,7 +459,7 @@ void raildataXmlClient::sanitiseData() {
     removeHtmlTags(xStation.service[i].calling);
     replaceWord(xStation.service[i].calling,"&amp;","&");
     removeHtmlTags(xStation.service[i].via);
-    replaceWord(xStation.service[i].via,"&amp;","&");    
+    replaceWord(xStation.service[i].via,"&amp;","&");
     removeHtmlTags(xStation.service[i].serviceMessage);
     replaceWord(xStation.service[i].serviceMessage,"&amp;","&");
     replaceWord(xStation.service[i].serviceMessage,"&quot;","\"");
@@ -460,13 +481,14 @@ void raildataXmlClient::sanitiseData() {
     replaceWord(xStation.nrccMessages[i],"<p>","");
     replaceWord(xStation.nrccMessages[i],"</p>","");
     replaceWord(xStation.nrccMessages[i],"<br>"," ");
-  
+
     removeHtmlTags(xStation.nrccMessages[i]);
     replaceWord(xStation.nrccMessages[i],"&amp;","&");
     replaceWord(xStation.nrccMessages[i],"&quot;","\"");
     // Remove unwanted text at the end of service messages...
     pruneFromPhrase(xStation.nrccMessages[i]," More details ");
-    pruneFromPhrase(xStation.nrccMessages[i]," Latest information can be found");
+    pruneFromPhrase(xStation.nrccMessages[i]," Latest information ");
+    pruneFromPhrase(xStation.nrccMessages[i]," Further information ");
 
     fixFullStop(xStation.nrccMessages[i]);
   }
@@ -502,10 +524,14 @@ void raildataXmlClient::value(const char *value)
     if (tagLevel == 11 && tagPath.endsWith(F("callingPoint/lt8:locationName"))) {
         if ((strlen(xStation.service[id].calling) + strlen(value) + 13) < sizeof(xStation.service[0].calling)) {
             // Add the calling point, add a comma prefix if this isn't the first one
-            if (strlen(xStation.service[id].calling)) strcat(xStation.service[id].calling,", ");
+            if (xStation.service[id].calling[0]) strcat(xStation.service[id].calling,", ");
             strcat(xStation.service[id].calling,value);
             addedStopLocation = true;
         }
+        return;
+    } else if (filter && tagLevel == 11 && tagPath.endsWith(F("callingPoint/lt8:crs")) && addedStopLocation) {
+        // check if we should keep this route?
+        if (strcmp(filterCrs,value)==0) keepRoute = true;
         return;
     } else if (tagLevel == 11 && tagPath.endsWith(F("callingPoint/lt8:st")) && addedStopLocation) {
         // check there's still room to add the eta of the calling point
@@ -537,7 +563,28 @@ void raildataXmlClient::value(const char *value)
         else if (strcmp(value,"bus")==0) xStation.service[id].serviceType = BUS;
         return;
     } else if (tagLevel == 8 && tagName == F("lt4:std")) {
-        // This is a new service
+        // Starting a new service
+        // If we're filtering on calling point, check if we need to keep the previous service (if there was one)
+        if (filter && !keepRoute && id>=0) {
+            // We don't want this service, so clear it
+            strcpy(xStation.service[id].sTime,"");
+            strcpy(xStation.service[id].destination,"");
+            strcpy(xStation.service[id].via,"");
+            strcpy(xStation.service[id].origin,"");
+            strcpy(xStation.service[id].etd,"");
+            strcpy(xStation.service[id].platform,"");
+            strcpy(xStation.service[id].opco,"");
+            strcpy(xStation.service[id].calling,"");
+            strcpy(xStation.service[id].serviceMessage,"");
+            xStation.service[id].trainLength=0;
+            xStation.service[id].classesAvailable=0;
+            xStation.service[id].serviceType=0;
+            xStation.service[id].isCancelled=false;
+            xStation.service[id].isDelayed=false;
+            xStation.numServices--;
+            id--;
+        }
+        keepRoute = false;  // reset for next route
         if (id>=0) {
             if (xStation.service[id].trainLength == 0) xStation.service[id].trainLength = coaches;
         }
@@ -565,7 +612,7 @@ void raildataXmlClient::value(const char *value)
         strncpy(xStation.service[id].serviceMessage,value,sizeof(xStation.service[0].serviceMessage)-1);
         xStation.service[id].serviceMessage[sizeof(xStation.service[0].serviceMessage)-1] = '\0';
         xStation.service[id].isDelayed = true;
-        return;  
+        return;
     } else if (tagLevel == 8 && tagName == F("lt4:cancelReason")) {
         strncpy(xStation.service[id].serviceMessage,value,sizeof(xStation.service[0].serviceMessage)-1);
         xStation.service[id].serviceMessage[sizeof(xStation.service[0].serviceMessage)-1] = '\0';
@@ -574,7 +621,7 @@ void raildataXmlClient::value(const char *value)
     } else if (tagLevel == 8 && tagName == (F("lt4:platform"))) {
         strncpy(xStation.service[id].platform,value,sizeof(xStation.service[0].platform)-1);
         xStation.service[id].platform[sizeof(xStation.service[0].platform)-1] = '\0';
-        return;            
+        return;
     } else if (tagLevel == 6 && tagName == F("lt4:locationName")) {
         strncpy(xStation.location,value,sizeof(xStation.location)-1);
         xStation.location[sizeof(xStation.location)-1] = '\0';
@@ -601,5 +648,5 @@ void raildataXmlClient::attribute(const char *attr)
                 soapURL = myURL.substring(10,myURL.length()-1);
             }
         }
-    }    
+    }
 }

@@ -51,6 +51,7 @@ bool github::getLatestRelease() {
         retryCounter++;
         if (retryCounter > 25) {
             // no response within 5 seconds so quit
+            httpsClient.stop();
             lastErrorMsg += F("Response timeout");
             return false;
         }
@@ -77,18 +78,20 @@ bool github::getLatestRelease() {
     releaseId="";
     releaseDescription="";
     releaseAssets=0;
+    unsigned long dataReceived = 0;
 
-    unsigned long dataSendTimeout = millis() + 10000UL;
+    unsigned long dataSendTimeout = millis() + 12000UL;
     while((httpsClient.available() || httpsClient.connected()) && (millis() < dataSendTimeout)) {
         while(httpsClient.available()) {
             c = httpsClient.read();
+            dataReceived++;
             if (c == '{' || c == '[') isBody = true;
             if (isBody) parser.parse(c);
         }
     }
     httpsClient.stop();
     if (millis() >= dataSendTimeout) {
-        lastErrorMsg += F("Data timeout");
+        lastErrorMsg += "Data timeout (" + String(dataReceived) + F(" bytes)");
         return false;
     }
 

@@ -1,12 +1,12 @@
 /*
  * Departures Board (c) 2025 Gadec Software
- * 
+ *
  * raildataXmlClient Library
- * 
+ *
  * https://github.com/gadec-uk/departures-board
- * 
+ *
  * This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
- * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/ 
+ * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/
  */
 
 #pragma once
@@ -15,7 +15,7 @@
 
 typedef void (*rdCallback) (int state, int id);
 
-#define MAXBOARDSERVICES 8
+#define MAXBOARDSERVICES 9
 #define MAXBOARDMESSAGES 4
 #define MAXMESSAGESIZE 400
 #define MAXLOCATIONSIZE 45
@@ -48,7 +48,6 @@ struct rdService {
   int trainLength;
   byte classesAvailable;
   char opco[50];
-  char calling[MAXMESSAGESIZE];
   char serviceMessage[MAXMESSAGESIZE];
   int serviceType;
 };
@@ -58,6 +57,7 @@ struct rdStation {
   bool platformAvailable;
   int numServices;
   int numMessages;
+  char calling[MAXMESSAGESIZE];   // Only store the calling stops for the first service returned
   rdService service[MAXBOARDSERVICES];
   char nrccMessages[MAXBOARDMESSAGES][MAXMESSAGESIZE];
 };
@@ -65,6 +65,32 @@ struct rdStation {
 class raildataXmlClient: public xmlListener {
 
     private:
+
+        struct rdiService {
+          char sTime[6];
+          char destination[MAXLOCATIONSIZE];
+          char via[MAXLOCATIONSIZE];
+          char origin[MAXLOCATIONSIZE];
+          char etd[11];
+          char platform[4];
+          bool isCancelled;
+          bool isDelayed;
+          int trainLength;
+          byte classesAvailable;
+          char opco[50];
+          char calling[MAXMESSAGESIZE];
+          char serviceMessage[MAXMESSAGESIZE];
+          int serviceType;
+        };
+        
+        struct rdiStation {
+          char location[MAXLOCATIONSIZE];
+          bool platformAvailable;
+          int numServices;
+          int numMessages;
+          rdiService service[MAXBOARDSERVICES];
+          char nrccMessages[MAXBOARDMESSAGES][MAXMESSAGESIZE];
+        };
 
         String grandParentTagName = "";
         String parentTagName = "";
@@ -74,10 +100,11 @@ class raildataXmlClient: public xmlListener {
         bool loadingWDSL=false;
         String soapURL = "";
         char soapHost[MAXHOSTSIZE];
-        char soapAPI[MAXAPIURLSIZE];        
+        char soapAPI[MAXAPIURLSIZE];
 
         String currentPath = "";
-        rdStation xStation;
+        rdiStation xStation;
+
         bool addedStopLocation = false;
         int id=0;
         int coaches=0;
@@ -87,7 +114,12 @@ class raildataXmlClient: public xmlListener {
         bool firstDataLoad;
         bool endXml;
 
+        char filterCrs[4];
+        bool filter = false;
+        bool keepRoute = false;
+
         rdCallback Xcb;
+        static bool compareTimes(const rdiService& a, const rdiService& b);
         void removeHtmlTags(char* input);
         void replaceWord(char* input, const char* target, const char* replacement);
         void pruneFromPhrase(char* input, const char* target);
@@ -99,11 +131,11 @@ class raildataXmlClient: public xmlListener {
         virtual void endTag(const char *tagName);
         virtual void parameter(const char *param);
         virtual void value(const char *value);
-        virtual void attribute(const char *attribute); 
+        virtual void attribute(const char *attribute);
 
-    public: 
+    public:
         raildataXmlClient();
         int init(const char *wsdlHost, const char *wsdlAPI, rdCallback RDcb);
-        int updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices);
+        int updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode);
         String getLastError();
 };

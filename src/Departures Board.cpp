@@ -20,14 +20,14 @@
 
 // Release version number
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 0
+#define VERSION_MINOR 1
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
-#include "HTTPUpdateGithub.h"
+#include <HTTPUpdateGithub.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -49,17 +49,16 @@ WebServer server(80);     // Hosting the Web GUI
 File fsUploadFile;        // File uploads
 
 // Shorthand for response formats
-const char contentTypeJson[] PROGMEM = "application/json";
-const char contentTypeText[] PROGMEM = "text/plain";
-const char contentTypeHtml[] PROGMEM = "text/html";
+static const char contentTypeJson[] PROGMEM = "application/json";
+static const char contentTypeText[] PROGMEM = "text/plain";
+static const char contentTypeHtml[] PROGMEM = "text/html";
 
 // Using NTP to set and maintain the clock
-const char* ntpServer = "europe.pool.ntp.org";
-struct tm timeinfo;
-
+static const char* ntpServer = "europe.pool.ntp.org";
+static struct tm timeinfo;
 
 // Local firmware updates via /update Web GUI
-const char* updatePage =
+static const char* updatePage =
 "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
 "<html><body><p>Firmware Upgrade - upload a <b>firmware.bin</b></p>"
 "<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
@@ -98,7 +97,7 @@ const char* updatePage =
  "</script></body></html>";
 
 // /upload page
-const char uploadPage[] PROGMEM =
+static const char uploadPage[] PROGMEM =
 "<html><body>"
 "<h2>Upload a file to the file system</h2><form method='post' enctype='multipart/form-data'><input type='file' name='name'>"
 "<input class='button' type='submit' value='Upload'></form></body></html>";
@@ -119,8 +118,8 @@ U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 26, /* dc=*/ 5, /* re
 //
 // Define the fonts we use. These are exact copies of those used on the real National Rail Station Boards
 //
-const uint8_t NatRailSmall9[973] U8G2_FONT_SECTION("NatRailSmall9") =
-  "a\0\3\2\3\4\2\5\5\7\11\0\0\11\0\11\2\1\71\2r\3\264 \5\0\63\5!\7\71\245"
+static const uint8_t NatRailSmall9[985] U8G2_FONT_SECTION("NatRailSmall9") =
+  "b\0\3\2\3\4\2\5\5\7\11\0\0\11\0\11\2\1\71\2r\3\300 \5\0\63\5!\7\71\245"
   "\304\240\4\42\7\33-Eb\11#\16=\245M)I\6\245\62(\245$\1$\14=\245U\266\324\266"
   "$\331\42\0%\14<eE\244H\221\24)R\0&\15=\245\215T\222\222DJ\242H\11'\6\31"
   "\255\304\0(\10;%UR\252\25)\11;%EV\252\224\0*\12-\247ERY,K\3+\12"
@@ -150,9 +149,9 @@ const uint8_t NatRailSmall9[973] U8G2_FONT_SECTION("NatRailSmall9") =
   "\21\0w\13-\245E\246$J\242t\1x\12-\245E\226\324*\265\0y\13=\241E\346\226\14\341"
   "\240\0z\11-\245\305\240\265\15\2{\17G#\206\266,=E\26\65\311\222d\11|\6\71\245\304!"
   "}\6\15\253\305 ~\15>\345\315\220\204\306\341!\211\22\0\15=\245E\222U\212Q\22%J\1"
-  "\200\11$k\215\22I\211\2\0\0\0";
+  "\200\11$k\215\22I\211\2\201\14\265%^\62hQ\66(\31\0\0\0\0";
 
-const uint8_t NatRailTall12[1035] U8G2_FONT_SECTION("NatRailTall12") =
+static const uint8_t NatRailTall12[1035] U8G2_FONT_SECTION("NatRailTall12") =
   "`\0\3\2\3\4\2\5\5\7\14\0\375\11\375\11\0\1K\2\225\3\362 \5\0s\5!\7I\241"
   "\304!\11\42\7\23/E\242\4#\21M\241M)I\6\245\224DI\62(\245$\1$\17M\241U"
   "\266\224\222lK\242$\331\42\0%\12M\241\345\64e\235\216\0&\20M\241\215T\211\222(\222\222D"
@@ -187,14 +186,14 @@ const uint8_t NatRailTall12[1035] U8G2_FONT_SECTION("NatRailTall12") =
   "c\35\13\303a\211\63\0~\21N\341\315\220\14C(\16\17\212\62\14I\224\0\16N\341E\22f"
   "J\224fI\226\364\37\0\0\0";
 
-const uint8_t NatRailClockSmall7[137] U8G2_FONT_SECTION("NatRailClockSmall7") =
+static const uint8_t NatRailClockSmall7[137] U8G2_FONT_SECTION("NatRailClockSmall7") =
   "\12\0\3\3\3\3\3\1\5\7\7\0\0\7\0\7\0\0\0\0\0\0p\60\12?\343Td\274I*"
   "\0\61\10\274\343HF\272\20\62\13?\343TdRIE*=\63\14?\343TdR\331\230&\251\0"
   "\64\14?\343\315H\22%\311Q*\1\65\13?c\34\244f)MR\1\66\14?\343TdT\213\214"
   "&\251\0\67\11?c\134\205Z\325\0\70\15?\343Td\64IEF\223T\0\71\14?\343Td\64"
   "\211\225&\251\0\0\0\0";
 
-const uint8_t NatRailClockLarge9[177] U8G2_FONT_SECTION("NatRailClockLarge9") =
+static const uint8_t NatRailClockLarge9[177] U8G2_FONT_SECTION("NatRailClockLarge9") =
   "\13\0\4\3\4\4\3\2\5\11\11\0\0\11\0\11\0\0\0\0\0\0\230\60\13\231T\307\205\24\277\222"
   "\270\0\61\11\224W\207\304\210\276 \62\16\231T\307\205\224\234\212\13\71u\7\2\63\17\231T\307\205\224"
   "\234\232B\71*\211\13\0\64\23\231T\327\24\221\204\214\210\32\11!\211\3\61\71\11\0\65\20\231T\307"
@@ -229,6 +228,8 @@ unsigned long nextDataUpdate = 0;   // Next National Rail update time (millis)
 int dataLoadSuccess = 0;            // Count of successful data downloads
 int dataLoadFailure = 0;            // Count of failed data downloads
 unsigned long lastLoadFailure = 0;  // When the last failure occurred
+int dateWidth;                      // Width of the displayed date in pixels
+int dateDay;                        // Day of the month of displayed date
 
 // Default network hostname
 char hostname[20] = "Departures Board";
@@ -242,6 +243,8 @@ char nrToken[37];                   // National Rail Darwin Lite Tokens are in t
 char crsCode[4];                    // Station code (3 character)
 float stationLat=0;                 // Selected station Latitude/Longitude (used to get weather for the location)
 float stationLon=0;
+char callingCrsCode[4];             // Station code to filter routes on
+char callingStation[45];            // Calling filter station friendly name
 
 // Coach class availability
 const char* firstClassSeating = " First class seating only.";
@@ -316,9 +319,21 @@ int getStringWidth(const __FlashStringHelper *message) {
   return u8g2.getStrWidth(buff);
 }
 
+void drawTruncatedText(const char *message, int line) {
+  char buff[strlen(message)+4];
+  int maxWidth = SCREEN_WIDTH - 6;
+
+  strcpy(buff,message);
+  int i = strlen(buff);
+  while (u8g2.getStrWidth(buff)>maxWidth && i) buff[i--] = '\0';
+  strcat(buff,"...");
+  u8g2.drawStr(0,line,buff);
+}
+
 void centreText(const char *message, int line) {
   int width = u8g2.getStrWidth(message);
-  if (width<SCREEN_WIDTH) u8g2.drawStr((SCREEN_WIDTH-width)/2,line,message); else u8g2.drawStr(0,line,message);
+  if (width<=SCREEN_WIDTH) u8g2.drawStr((SCREEN_WIDTH-width)/2,line,message);
+  else drawTruncatedText(message,line);
 }
 
 void centreText(const __FlashStringHelper *message, int line) {
@@ -326,7 +341,8 @@ void centreText(const __FlashStringHelper *message, int line) {
   char buff[temp.length()+1];
   temp.toCharArray(buff,sizeof(buff));
   int width = u8g2.getStrWidth(buff);
-  if (width<SCREEN_WIDTH) u8g2.drawStr((SCREEN_WIDTH-width)/2,line,buff); else u8g2.drawStr(0,line,buff);
+  if (width<=SCREEN_WIDTH) u8g2.drawStr((SCREEN_WIDTH-width)/2,line,buff);
+  else drawTruncatedText(buff,line);
 }
 
 void drawProgressBar(int percent) {
@@ -402,6 +418,21 @@ void drawCurrentTime(bool update) {
     u8g2.setFont(NatRailSmall9);
     if (update) u8g2.updateDisplayArea(12,6,8,2);
     strcpy(displayedTime,sysTime);
+    if (dateEnabled && timeinfo.tm_mday!=dateDay) {
+      // Need to update the date on screen
+      strftime(sysTime,29,"%a %d %b",&timeinfo);
+      int newDateWidth = getStringWidth(sysTime);
+      if (callingStation[0]) {
+        blankArea(SCREEN_WIDTH-dateWidth,LINE4-1,dateWidth,9);
+        u8g2.drawStr(SCREEN_WIDTH-newDateWidth,LINE4-1,sysTime);
+      } else {
+        blankArea(SCREEN_WIDTH-dateWidth,LINE0-1,dateWidth,9);
+        u8g2.drawStr(SCREEN_WIDTH-newDateWidth,LINE0-1,sysTime);
+      }
+      dateWidth = newDateWidth;
+      dateDay = timeinfo.tm_mday;
+      if (update) u8g2.sendBuffer();  // Just refresh on new date
+    }
   }
 }
 
@@ -430,12 +461,12 @@ void drawSleepingScreen() {
 void showUpdateIcon(bool show) {
   if (show) {
     u8g2.setFont(NatRailTall12);
-    u8g2.drawStr(250,50,"}");
+    u8g2.drawStr(0,50,"}");
     u8g2.setFont(NatRailSmall9);
   } else {
-    blankArea(250,50,6,13);
+    blankArea(0,50,6,13);
   }
-  u8g2.updateDisplayArea(31,6,1,2);
+  u8g2.updateDisplayArea(0,6,1,2);
 }
 
 /*
@@ -683,6 +714,8 @@ void loadConfig() {
         JsonObject settings = doc.as<JsonObject>();
 
         if (settings["crs"].is<const char*>())        strlcpy(crsCode, settings["crs"], sizeof(crsCode));
+        if (settings["callingCrs"].is<const char*>()) strlcpy(callingCrsCode, settings["callingCrs"], sizeof(callingCrsCode));
+        if (settings["callingStation"].is<const char*>()) strlcpy(callingStation, settings["callingStation"], sizeof(callingStation));
         if (settings["hostname"].is<const char*>())   strlcpy(hostname, settings["hostname"], sizeof(hostname));
         if (settings["wsdlHost"].is<const char*>())   strlcpy(wsdlHost, settings["wsdlHost"], sizeof(wsdlHost));
         if (settings["wsdlAPI"].is<const char*>())    strlcpy(wsdlAPI, settings["wsdlAPI"], sizeof(wsdlAPI));
@@ -727,13 +760,167 @@ void wmConfigModeCallback (WiFiManager *myWiFiManager) {
 }
 
 /*
+ * Firmware / Web GUI Update functions
+*/
+bool isFirmwareUpdateAvailable() {
+  int releaseMajor = ghUpdate.releaseId.substring(1,ghUpdate.releaseId.indexOf(".")).toInt();
+  int releaseMinor = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf(".")+1,ghUpdate.releaseId.indexOf("-")).toInt();
+  if (VERSION_MAJOR > releaseMajor) return false;
+  if ((VERSION_MAJOR == releaseMajor) && (VERSION_MINOR >= releaseMinor)) return false;
+  return true;
+}
+
+bool isWebAppUpdateAvailable() {
+  String waAvailableRelease = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf("-")+2);
+  int releaseMajor = waAvailableRelease.substring(0,waAvailableRelease.indexOf(".")).toInt();
+  int releaseMinor = waAvailableRelease.substring(waAvailableRelease.indexOf(".")+1).toInt();
+
+  if (waCurrentMajor > releaseMajor) return false;
+  if ((waCurrentMajor == releaseMajor) && (waCurrentMinor >= releaseMinor)) return false;
+  return true;
+}
+
+// Callback function for displaying firmware update progress
+void update_progress(int cur, int total) {
+  int percent = ((cur * 100)/total);
+  showFirmwareUpdateProgress(percent);
+}
+
+// Attempts to install newer firmware if available
+bool checkForFirmwareUpdate() {
+  bool result = true;
+
+  if (!isFirmwareUpdateAvailable()) return result;
+  log_i("Firmware update available %s\n",ghUpdate.releaseId.c_str());
+
+  // Find the firmware binary in the release assets
+  String updatePath="";
+  for (int i=0;i<ghUpdate.releaseAssets;i++){
+    if (ghUpdate.releaseAssetName[i] == "firmware.bin") {
+      updatePath = ghUpdate.releaseAssetURL[i];
+      break;
+    }
+  }
+  if (updatePath.length()==0) {
+    log_e("No firmware binary in release assets\n");
+    return result;
+  }
+
+  unsigned long tmr=millis()+1000;
+  for (int i=30;i>=0;i--) {
+    showFirmwareUpdateWarningScreen(ghUpdate.releaseDescription.c_str(),i);
+    while (tmr>millis()) {
+      yield();
+      server.handleClient();
+    }
+    tmr=millis()+1000;
+  }
+  u8g2.clearDisplay();
+  prevProgressBarPosition=0;
+  showFirmwareUpdateProgress(0);  // So we don't have a blank screen
+  WiFiClientSecure client;
+  client.setInsecure();
+  httpUpdate.onProgress(update_progress);
+  httpUpdate.rebootOnUpdate(false); // Don't auto reboot, we'll handle it
+
+  HTTPUpdateResult ret = httpUpdate.handleUpdate(client, updatePath, ghUpdate.accessToken);
+  const char* msgTitle = "Firmware Update";
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      char msg[60];
+      sprintf(msg,"The update failed with error %d.",httpUpdate.getLastError());
+      result=false;
+      for (int i=15;i>=0;i--) {
+        showUpdateCompleteScreen(msgTitle,msg,httpUpdate.getLastErrorString().c_str(),i,false);
+        delay(1000);
+      }
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      for (int i=10;i>=0;i--) {
+        showUpdateCompleteScreen(msgTitle,"","No firmware updates were available.",i,false);
+        delay(1000);
+      }
+      break;
+
+    case HTTP_UPDATE_OK:
+      for (int i=10;i>=0;i--) {
+        showUpdateCompleteScreen(msgTitle,"The firmware update has completed successfully.","",i,true);
+        delay(1000);
+      }
+      ESP.restart();
+      break;
+  }
+  u8g2.clearDisplay();
+  drawStartupHeading();
+  u8g2.sendBuffer();
+  return result;
+}
+
+// Attempts to update the Web GUI files if newer versions are available
+bool checkForWebAppUpdate(bool manual) {
+  File f;
+  bool wauResult = true;
+
+  if (!isWebAppUpdateAvailable()) return wauResult;
+  String waAvailableRelease = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf("-")+2);
+  int releaseMajor = waAvailableRelease.substring(0,waAvailableRelease.indexOf(".")).toInt();
+  int releaseMinor = waAvailableRelease.substring(waAvailableRelease.indexOf(".")+1).toInt();
+
+  log_i("WebApp update available %s\n",ghUpdate.releaseId.c_str());
+  int savedProgressPercent = prevProgressBarPosition;
+  prevProgressBarPosition=0;
+  showWebappUpdateProgress(0);
+  int fileNo=0;
+  for (int i=0;i<ghUpdate.releaseAssets;i++) {
+    // Skip over the .bin firmware files
+    if (!ghUpdate.releaseAssetName[i].endsWith(".bin")) {
+      if (!ghUpdate.downloadAssetToLittleFS(ghUpdate.releaseAssetURL[i],"/"+ghUpdate.releaseAssetName[i])) {
+        wauResult = false;
+        break;
+      }
+      fileNo++;
+      int percent = (fileNo*100)/(ghUpdate.releaseAssets-4);  // There are always 4 .bin files in release assets. Everything else is assumed to be Web GUI
+      showWebappUpdateProgress(percent);
+    }
+  }
+  if (wauResult) {
+    // All the files have been updated, so update the webapp version
+    waCurrentMajor = releaseMajor;
+    waCurrentMinor = releaseMinor;
+    f = LittleFS.open(F("/webapp.ver"),"w");
+    if (f) {
+      f.println(releaseMajor);
+      f.println(releaseMinor);
+      f.close();
+    }
+    log_i("WebApp Updated OK\n");
+  } else {
+    char msg[60];
+    sprintf(msg,"The update failed with error %d.",httpUpdate.getLastError());
+    for (int i=15;i>=0;i--) {
+      showUpdateCompleteScreen("Web GUI Update","The update did not complete successfully.",ghUpdate.getLastError().c_str(),i,false);
+      delay(1000);
+    }
+  }
+
+  if (!manual) {
+    u8g2.clearDisplay();
+    drawStartupHeading();
+    u8g2.sendBuffer();
+  }
+  prevProgressBarPosition = savedProgressPercent;
+  return wauResult;
+}
+
+/*
  * Station Board functions - pulling updates and animating the Departures Board main display
  */
 
 // Request a data update via the raildataClient
 bool getStationBoard() {
   if (!firstLoad) showUpdateIcon(true);
-  lastUpdateResult = raildata.updateDepartures(&station,crsCode,nrToken,MAXBOARDSERVICES,enableBus);
+  lastUpdateResult = raildata.updateDepartures(&station,crsCode,nrToken,MAXBOARDSERVICES,enableBus,callingCrsCode);
   nextDataUpdate = millis()+DATAUPDATEINTERVAL; // default update freq
   if (lastUpdateResult == UPD_SUCCESS || lastUpdateResult == UPD_NO_CHANGE) {
     showUpdateIcon(false);
@@ -741,7 +928,7 @@ bool getStationBoard() {
     noDataLoaded=false;
     dataLoadSuccess++;
     return true;
-  } else if (lastUpdateResult == UPD_DATA_ERROR) {
+  } else if (lastUpdateResult == UPD_DATA_ERROR || lastUpdateResult == UPD_TIMEOUT) {
     lastLoadFailure=millis();
     dataLoadFailure++;
     nextDataUpdate = millis() + 30000; // 30 secs
@@ -752,6 +939,7 @@ bool getStationBoard() {
     while (true) { server.handleClient(); yield();}
   } else {
     showUpdateIcon(false);
+    dataLoadFailure++;
     return false;
   }
 }
@@ -765,7 +953,7 @@ void drawPrimaryService(bool showVia) {
   u8g2.setFont(NatRailTall12);
   blankArea(0,LINE1,256,LINE2-LINE1);
   destPos = u8g2.drawStr(0,LINE1-1,station.service[0].sTime) + 6;
-  if (strlen(station.service[0].platform) && strlen(station.service[0].platform)<3 && station.service[0].serviceType == TRAIN) {
+  if (station.service[0].platform[0] && strlen(station.service[0].platform)<3 && station.service[0].serviceType == TRAIN) {
     destPos += u8g2.drawStr(destPos,LINE1-1,station.service[0].platform) + 6;
   } else if (station.service[0].serviceType == BUS) {
     destPos += u8g2.drawStr(destPos,LINE1-1,"~") + 6; // Bus icon
@@ -834,7 +1022,7 @@ void drawServiceLine(int line, int y) {
     int destPos = u8g2.drawStr(23,y-1,station.service[line].sTime) + 4 + 23;
     char plat[3];
     if (station.platformAvailable) {
-      if (strlen(station.service[line].platform) && strlen(station.service[line].platform)<3 && station.service[line].serviceType == TRAIN) {
+      if (station.service[line].platform[0] && strlen(station.service[line].platform)<3 && station.service[line].serviceType == TRAIN) {
         strncpy(plat,station.service[line].platform,3);
         plat[2]='\0';
       } else {
@@ -864,7 +1052,7 @@ void drawServiceLine(int line, int y) {
     }
     u8g2.drawStr(destPos,y-1,clipDestination);
   } else {
-    if (strlen(weatherMsg) && line==station.numServices) {
+    if (weatherMsg[0] && line==station.numServices) {
       // We're showing the weather
       centreText(weatherMsg,y-1);
     } else {
@@ -887,20 +1075,31 @@ void drawStationBoard() {
     blankArea(0,LINE0,256,LINE2-1);
   }
   u8g2.setFont(NatRailSmall9);
+  char boardTitle[95];
+  if (callingStation[0]) snprintf(boardTitle,sizeof(boardTitle),"%s  (%c%s)",station.location,129,callingStation);
+  else strncpy(boardTitle,station.location,sizeof(boardTitle));
+
   if (dateEnabled) {
     // Get the date
     char sysTime[29];
     getLocalTime(&timeinfo);
     strftime(sysTime,29,"%a %d %b",&timeinfo);
-    int dateWidth = u8g2.drawStr(SCREEN_WIDTH-getStringWidth(sysTime),LINE0-1,sysTime);
-    if (SCREEN_WIDTH-getStringWidth(station.location)/2 < (dateWidth+8)) {
-      // Draw station name on the left as it's too long to be centered with the date showing
-      u8g2.drawStr(0,LINE0-1,station.location);
+    dateWidth = getStringWidth(sysTime);
+    dateDay = timeinfo.tm_mday;
+    if (callingStation[0]) {
+      u8g2.drawStr(SCREEN_WIDTH-dateWidth,LINE4-1,sysTime); // Date bottom right when filtering services
+      centreText(boardTitle,LINE0-1);
     } else {
-      centreText(station.location,LINE0-1);
+      u8g2.drawStr(SCREEN_WIDTH-dateWidth,LINE0-1,sysTime); // right-aligned date top
+      if ((SCREEN_WIDTH-getStringWidth(boardTitle))/2 < dateWidth+8) {
+        // Station name left aligned
+        u8g2.drawStr(0,LINE0-1,boardTitle);
+      } else {
+        centreText(boardTitle,LINE0-1);
+      }
     }
   } else {
-    centreText(station.location,LINE0-1);
+    centreText(boardTitle,LINE0-1);
   }
 
   // Draw the primary service line
@@ -908,28 +1107,28 @@ void drawStationBoard() {
   viaTimer=millis()+300000;  // effectively don't check for via
   if (station.numServices) {
     drawPrimaryService(false);
-    if (strlen(station.service[0].via)) viaTimer=millis()+4000;
+    if (station.service[0].via[0]) viaTimer=millis()+4000;
     if (station.service[0].isCancelled) {
       // This train is cancelled
-      if (strlen(station.service[0].serviceMessage)) {
+      if (station.service[0].serviceMessage[0]) {
         strcpy(line2[0],station.service[0].serviceMessage);
         numMessages=1;
       }
     } else {
       // The train is not cancelled
-      if (station.service[0].isDelayed && strlen(station.service[0].serviceMessage)) {
+      if (station.service[0].isDelayed && station.service[0].serviceMessage[0]) {
         // The train is delayed and there's a reason
         strcpy(line2[0],station.service[0].serviceMessage);
         numMessages++;
       }
-      if (strlen(station.service[0].calling)) {
+      if (station.calling[0]) {
         // Add the calling stops message
-        sprintf(line2[numMessages],"Calling at: %s",station.service[0].calling);
+        sprintf(line2[numMessages],"Calling at: %s",station.calling);
         numMessages++;
       }
       if (strcmp(station.service[0].origin, station.location)==0) {
         // Service originates at this station
-        if (strlen(station.service[0].opco)) {
+        if (station.service[0].opco[0]) {
           sprintf(line2[numMessages],"This %s service starts here.",station.service[0].opco);
         } else {
           strcpy(line2[numMessages],"This service starts here.");
@@ -950,14 +1149,14 @@ void drawStationBoard() {
       } else {
         // Service originates elsewhere
         strcpy(line2[numMessages],"");
-        if (strlen(station.service[0].opco)) {
-          if (strlen(station.service[0].origin)) {
+        if (station.service[0].opco[0]) {
+          if (station.service[0].origin[0]) {
             sprintf(line2[numMessages],"This is the %s service from %s.",station.service[0].opco,station.service[0].origin);
           } else {
             sprintf(line2[numMessages],"This is the %s service.",station.service[0].opco);
           }
         } else {
-          if (strlen(station.service[0].origin)) {
+          if (station.service[0].origin[0]) {
             sprintf(line2[numMessages],"This service originated at %s.",station.service[0].origin);
           }
         }
@@ -973,7 +1172,7 @@ void drawStationBoard() {
             strcat(line2[numMessages],dualClassSeating);
             break;
         }
-        if (strlen(line2[numMessages])) numMessages++;
+        if (line2[numMessages][0]) numMessages++;
       }
       if (station.service[0].trainLength) {
         // Add the number of carriages message
@@ -1107,8 +1306,8 @@ void handleSaveKeys() {
       sendResponse(200,msg);
       // Load/Update the API Keys in memory
       loadApiKeys();
-      // If the station code is blank, we're in the setup process. If not, they keys have been changed so just reboot.
-      if (strlen(crsCode)==0) showSetupCrsHelpScreen(); else ESP.restart();
+      // If the station code is blank, we're in the setup process. If not, the keys have been changed so just reboot.
+      if (!crsCode[0]) showSetupCrsHelpScreen(); else { delay(500); ESP.restart(); }
     } else {
       sendResponse(400,msg);
     }
@@ -1124,7 +1323,7 @@ void handleSaveSettings() {
   if ((server.method() == HTTP_POST) && (server.hasArg("plain"))) {
     newJSON = server.arg("plain");
     saveFile("/config.json",newJSON);
-    if (strlen(crsCode)==0) {
+    if (!crsCode[0]) {
       // First time setup, we need a full reboot
       sendResponse(200,F("Configuration saved. The Departures Board will now restart."));
       delay(1000);
@@ -1328,33 +1527,27 @@ void handleInfo() {
 
 // Stream the index.htm page unless we're in first time setup and need the api keys
 void handleRoot() {
-  if (strlen(nrToken)==0 && LittleFS.exists(F("/keys.htm"))) handleStreamFile(F("/keys.htm"));
-  else if (strlen(nrToken) && LittleFS.exists(F("/index.htm"))) handleStreamFile(F("/index.htm"));
+  if (!nrToken[0] && LittleFS.exists(F("/keys.htm"))) handleStreamFile(F("/keys.htm"));
+  else if (nrToken[0] && LittleFS.exists(F("/index.htm"))) handleStreamFile(F("/index.htm"));
   else handleInfo();
 }
 
 // Send the firmware version to the client (called from index.htm)
 void handleFirmwareInfo() {
-  String response = "{\"firmware\":\"B" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + "W" + String(waCurrentMajor) + "." + String(waCurrentMinor) + F(" Build:") + getBuildTime() + F("\"}");
+  String response = "{\"firmware\":\"B" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + "-W" + String(waCurrentMajor) + "." + String(waCurrentMinor) + F(" Build:") + getBuildTime() + F("\"}");
   server.send(200,contentTypeJson,response);
-}
-
-// Force a new data fetch and send the result back to the browser (for debugging)
-void handleForceFetch() {
-  getStationBoard();
-  handleInfo();
 }
 
 // Force a reboot of the ESP32
 void handleReboot() {
-  sendResponse(200,F("Rebooting..."));
+  sendResponse(200,F("The Departures Board is restarting..."));
   delay(1000);
   ESP.restart();
 }
 
 // Erase the stored WiFiManager credentials
 void handleEraseWiFi() {
-  sendResponse(200,F("Erasing stored WiFi. You will need to use WiFi Manager to reconfigure."));
+  sendResponse(200,F("Erasing stored WiFi. You will need to connect to the \"Departures Board\" network and use WiFi Manager to reconfigure."));
   delay(1000);
   WiFiManager wm;
   wm.resetSettings();
@@ -1386,6 +1579,31 @@ void handleBrightness() {
     }
   }
   sendResponse(200,F("invalid request"));
+}
+
+// Web GUI has requested updates be installed
+void handleOtaUpdate() {
+  sendResponse(200,F("Update initiated - check Departure Board for progress"));
+  delay(500);
+  u8g2.clearBuffer();
+  u8g2.setFont(NatRailTall12);
+  centreText(F("Getting latest firmware details from GitHub..."),26);
+  u8g2.sendBuffer();
+
+  if (ghUpdate.getLatestRelease()) {
+    if (checkForWebAppUpdate(true)) {
+      // Only check for firmware update if the webapp went OK
+      checkForFirmwareUpdate();
+    }
+  } else {
+    for (int i=10;i>=0;i--) {
+      showUpdateCompleteScreen("Firmware Update Check Failed","Unable to retrieve latest release information.",ghUpdate.getLastError().c_str(),i,false);
+      delay(1000);
+    }
+    log_e("FW Update failed: %s\n",ghUpdate.getLastError().c_str());
+  }
+  // Always restart
+  ESP.restart();
 }
 
 /*
@@ -1503,142 +1721,6 @@ void updateCurrentWeather() {
   }
 }
 
-// Callback function for displaying firmware update progress
-void update_progress(int cur, int total) {
-  int percent = ((cur * 100)/total);
-  showFirmwareUpdateProgress(percent);
-}
-
-// Attempts to install newer firmware if available
-bool checkForFirmwareUpdate() {
-  bool result = true;
-  int releaseMajor = ghUpdate.releaseId.substring(1,ghUpdate.releaseId.indexOf(".")).toInt();
-  int releaseMinor = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf(".")+1,ghUpdate.releaseId.indexOf("-")).toInt();
-  if (VERSION_MAJOR > releaseMajor) return result;
-  if ((VERSION_MAJOR == releaseMajor) && (VERSION_MINOR >= releaseMinor)) return result;
-
-  log_i("Firmware update available %s\n",ghUpdate.releaseId.c_str());
-
-  // Find the firmware binary in the release assets
-  String updatePath="";
-  for (int i=0;i<ghUpdate.releaseAssets;i++){
-    if (ghUpdate.releaseAssetName[i] == "firmware.bin") {
-      updatePath = ghUpdate.releaseAssetURL[i];
-      break;
-    }
-  }
-  if (updatePath.length()==0) {
-    log_e("No firmware binary in release assets\n");
-    return result;
-  }
-
-  unsigned long tmr=millis()+1000;
-  for (int i=30;i>=0;i--) {
-    showFirmwareUpdateWarningScreen(ghUpdate.releaseDescription.c_str(),i);
-    while (tmr>millis()) {
-      yield();
-      server.handleClient();
-    }
-    tmr=millis()+1000;
-  }
-  u8g2.clearDisplay();
-  prevProgressBarPosition=0;
-  showFirmwareUpdateProgress(0);  // So we don't have a blank screen
-  WiFiClientSecure client;
-  client.setInsecure();
-  httpUpdate.onProgress(update_progress);
-  httpUpdate.rebootOnUpdate(false); // Don't auto reboot, we'll handle it
-
-  HTTPUpdateResult ret = httpUpdate.handleUpdate(client, updatePath, ghUpdate.accessToken);
-  const char* msgTitle = "Firmware Update";
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      char msg[60];
-      sprintf(msg,"The update failed with error %d.",httpUpdate.getLastError());
-      result=false;
-      for (int i=15;i>=0;i--) {
-        showUpdateCompleteScreen(msgTitle,msg,httpUpdate.getLastErrorString().c_str(),i,false);
-        delay(1000);
-      }
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      for (int i=10;i>=0;i--) {
-        showUpdateCompleteScreen(msgTitle,"","No firmware updates were available.",i,false);
-        delay(1000);
-      }
-      break;
-
-    case HTTP_UPDATE_OK:
-      for (int i=10;i>=0;i--) {
-        showUpdateCompleteScreen(msgTitle,"The firmware update has completed successfully.","",i,true);
-        delay(1000);
-      }
-      ESP.restart();
-      break;
-  }
-  u8g2.clearDisplay();
-  drawStartupHeading();
-  u8g2.sendBuffer();
-  return result;
-}
-
-// Attempts to update the Web GUI files if newer versions are available
-bool checkForWebAppUpdate() {
-  File f;
-  bool wauResult = true;
-
-  String waAvailableRelease = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf("-")+2);
-  int releaseMajor = waAvailableRelease.substring(0,waAvailableRelease.indexOf(".")).toInt();
-  int releaseMinor = waAvailableRelease.substring(waAvailableRelease.indexOf(".")+1).toInt();
-
-  if (waCurrentMajor > releaseMajor) return wauResult;
-  if ((waCurrentMajor == releaseMajor) && (waCurrentMinor >= releaseMinor)) return wauResult;
-
-  log_i("WebApp update available %s\n",ghUpdate.releaseId.c_str());
-  int savedProgressPercent = prevProgressBarPosition;
-  prevProgressBarPosition=0;
-  showWebappUpdateProgress(0);
-  int fileNo=0;
-  for (int i=0;i<ghUpdate.releaseAssets;i++) {
-    // Skip over the .bin firmware files
-    if (!ghUpdate.releaseAssetName[i].endsWith(".bin")) {
-      if (!ghUpdate.downloadAssetToLittleFS(ghUpdate.releaseAssetURL[i],"/"+ghUpdate.releaseAssetName[i])) {
-        wauResult = false;
-        break;
-      }
-      fileNo++;
-      int percent = (fileNo*100)/(ghUpdate.releaseAssets-4);  // There are always 4 .bin files in release assets. Everything else is assumed to be Web GUI
-      showWebappUpdateProgress(percent);
-    }
-  }
-  if (wauResult) {
-    // All the files have been updated, so update the webapp version
-    waCurrentMajor = releaseMajor;
-    waCurrentMinor = releaseMinor;
-    f = LittleFS.open(F("/webapp.ver"),"w");
-    if (f) {
-      f.println(releaseMajor);
-      f.println(releaseMinor);
-      f.close();
-    }
-    log_i("WebApp Updated OK\n");
-  } else {
-    char msg[60];
-    sprintf(msg,"The update failed with error %d.",httpUpdate.getLastError());
-    for (int i=15;i>=0;i--) {
-      showUpdateCompleteScreen("Web GUI Update","The update did not complete successfully.",ghUpdate.getLastError().c_str(),i,false);
-      delay(1000);
-    }
-  }
-  u8g2.clearDisplay();
-  drawStartupHeading();
-  u8g2.sendBuffer();
-
-  prevProgressBarPosition = savedProgressPercent;
-  return wauResult;
-}
-
 /*
  * Setup / Loop functions
 */
@@ -1652,7 +1734,6 @@ void setup(void) {
   u8g2.setFontMode(1);                // Transparent fonts
   u8g2.setFontRefHeightAll();         // Count entire font height
   u8g2.setFontPosTop();               // Reference from top
-  u8g2.setFont(NatRailTall12);        // Set the initial font
   drawStartupHeading();               // Draw the startup heading
   u8g2.sendBuffer();                  // Send to OLED display
   progressBar(F("Initialising Departures Board"),0);
@@ -1664,7 +1745,6 @@ void setup(void) {
   loadApiKeys();                              // Load the API keys from the apiKeys.json
   loadConfig();                               // Load the configuration settings from config.json
   u8g2.setContrast(brightness);               // Set the panel brightness to the user saved level
-
   progressBar(F("Initialising Departures Board"),15);
   u8g2.drawStr(SCREEN_WIDTH-getStringWidth(crsCode),53,crsCode);  // Display the saved station code in the bottom right corner
   u8g2.sendBuffer();
@@ -1710,7 +1790,6 @@ void setup(void) {
   server.on(F("/erasewifi"),handleEraseWiFi);
   server.on(F("/factoryreset"),handleFactoryReset);
   server.on(F("/info"),handleInfo);
-  server.on(F("/fetch"),handleForceFetch);
   server.on(F("/formatffs"),handleFormatFFS);
   server.on(F("/dir"),handleFileList);
   server.onNotFound(handleNotFound);
@@ -1722,6 +1801,7 @@ void setup(void) {
   server.on(F("/savesettings"),HTTP_POST,handleSaveSettings);   // Used by the Web GUI to save updated configuration settings
   server.on(F("/savekeys"),HTTP_POST,handleSaveKeys);           // Used by the Web GUI to verify/save API keys
   server.on(F("/brightness"),handleBrightness);                 // Used by the Web GUI to interactively set the panel brightness
+  server.on(F("/ota"),handleOtaUpdate);                         // Used by the Web GUI to initiate a manual firmware/WebApp update
 
   server.on("/update", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
@@ -1765,7 +1845,7 @@ void setup(void) {
     if (ghUpdate.getLatestRelease()) {
       if (checkForFirmwareUpdate()) {
         // Only check for webapp updates if the firmware update did not fail.
-        checkForWebAppUpdate();
+        checkForWebAppUpdate(false);
       }
     } else {
       for (int i=10;i>=0;i--) {
@@ -1780,8 +1860,8 @@ void setup(void) {
   }
 
   // First time configuration?
-  if (strlen(crsCode)==0 || strlen(nrToken)==0) {
-    if (strlen(nrToken)==0) showSetupKeysHelpScreen(); else showSetupCrsHelpScreen();
+  if (!crsCode[0] || !nrToken[0]) {
+    if (!nrToken[0]) showSetupKeysHelpScreen(); else showSetupCrsHelpScreen();
     // First time setup mode will exit with a reboot, so just loop here forever servicing web requests
     while (true) {
       yield();
@@ -1882,7 +1962,7 @@ void loop(void) {
 
   // Check if there's a via destination
   if (millis()>viaTimer) {
-    if (station.numServices && strlen(station.service[0].via) && !isSleeping && lastUpdateResult!=UPD_UNAUTHORISED && lastUpdateResult!=UPD_DATA_ERROR) {
+    if (station.numServices && station.service[0].via[0] && !isSleeping && lastUpdateResult!=UPD_UNAUTHORISED && lastUpdateResult!=UPD_DATA_ERROR) {
       isShowingVia = !isShowingVia;
       drawPrimaryService(isShowingVia);
       u8g2.updateDisplayArea(0,1,32,3);
@@ -1892,7 +1972,7 @@ void loop(void) {
 
   if (millis()>serviceTimer && !isScrollingService && !isSleeping && lastUpdateResult!=UPD_UNAUTHORISED && lastUpdateResult!=UPD_DATA_ERROR) {
     // Need to change to the next service if there is one
-    if (station.numServices <= 1 && strlen(weatherMsg)==0) {
+    if (station.numServices <= 1 && !weatherMsg[0]) {
       // There's no other services and no weather so just so static attribution.
       drawServiceLine(1,LINE3);
       serviceTimer = millis() + 30000;
@@ -1901,9 +1981,9 @@ void loop(void) {
       prevService = line3Service;
       line3Service++;
       if (station.numServices) {
-        if ((line3Service>station.numServices && strlen(weatherMsg)==0) || (line3Service>station.numServices+1 && strlen(weatherMsg))) line3Service=1;  // First 'other' service
+        if ((line3Service>station.numServices && !weatherMsg[0]) || (line3Service>station.numServices+1 && weatherMsg[0])) line3Service=1;  // First 'other' service
       } else {
-        if (strlen(weatherMsg) && line3Service>1) line3Service=0;
+        if (weatherMsg[0] && line3Service>1) line3Service=0;
       }
       scrollServiceYpos=10;
       isScrollingService = true;
