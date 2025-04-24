@@ -5,13 +5,14 @@ This is an ESP32 based mini Departures Board replicating those at many UK railwa
 ## Features
 * All processing is done onboard by the ESP32 processor
 * Smooth animation matching the real departures boards
-* Displays up to the next 8 departures with platform, calling stations and expected departure time
+* Displays up to the next 9 departures with platform, calling stations and expected departure time
+* Optionally only show services calling at a selected station (**new in v1.1**)
 * Network Rail service messages
 * Train information (operator, class, number of coaches etc.)
 * Fully-featured Web UI - choose any station on the UK network
 * Automatic firmware updates (optional)
 * Displays the weather at the selected location (optional)
-* STL files provided for custom 3D printed case
+* STL files provided for custom 3D printed case (**updated in v1.1**)
 
 This short video demonstrates the Departures Board in action...
 [![Departures Board Demo Video](https://github.com/user-attachments/assets/409b9a82-33a9-4351-ac87-f7e44ac56795)](https://youtu.be/N3pHk6yqwvo)
@@ -65,10 +66,10 @@ esptool.py --chip esp32 --port COMx --baud 460800 write_flash -z \
 
 Replace *COMx* with your actual port (COM3, /dev/ttyUSB0, etc.). If using the pre-compiled esptool.exe version on windows, you will need to type the entire command on one line:
 ```
-esptool --chip esp32 --port COM3 --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
+esptool --chip esp32 --port COMx --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
 ```
 
-Subsequent updates can be carried out automatically over-the-air or you can manually update from the Web GUI with just the firmware.bin file.
+Subsequent updates can be carried out automatically over-the-air or you can manually update from the Web GUI.
 
 ### First time configuration
 
@@ -81,6 +82,7 @@ Once the ESP32 has established an Internet connection, the Web GUI files will be
 
 At start-up, the ESP32's IP address is displayed. To change the station or to configure other miscellaneous settings, open the web page at that address. The settings available are:
 - **Station** - start typing a few characters of a station name and select from the drop-down station picker displayed.
+- **Only show services calling at** - filter services based on *calling at* location (if you want to see the next trains *to* a particular station).
 - **Brightness** - adjusts the brightness of the OLED screen.
 - **Show the date on screen** - displays the date in the upper-right corner (useful if you're also using this as a desk clock!)
 - **Include Bus services** - optionally include bus replacement services (shown with a small bus icon in place of platform number).
@@ -88,15 +90,17 @@ At start-up, the ESP32's IP address is displayed. To change the station or to co
 - **Enable automatic firmware updates at startup** - automatically checks for AND installs the latest firmware/Web GUI from this repository.
 - **Enable overnight sleep mode (screensaver)** - if you're running the board 24/7, you can help prevent screen burn-in by enabling this option overnight.
 
+A drop-down menu (**new in v1.1**) adds the following options:
+- **Check for Updates** - manually checks for and installs any updates to the firmware/Web GUI.
+- **Edit API Keys** - view/edit your National Rail / OpenWeather Map API keys.
+- **Clear WiFi Settings** - deletes the stored WiFi credentials and restarts in WiFiManager mode (useful to change WiFi network).
+- **Restart System** - restarts the ESP32.
+
 #### Other Web GUI Endpoints
 
-A few other potentially useful urls have been implemented:
-- **/reboot** - restarts the ESP32.
-- **/erasewifi** - deletes the stored WiFi credentials and restarts in WiFiManager mode (useful to change WiFi network).
+A few other urls have been implemented, primarily for debugging/developer use:
 - **/factoryreset** - deletes all configuration information, api keys and WiFi credentials. The entire setup process will need to be repeated.
-- **/update** - for manual firmware updates. Download the latest binary from the [releases](https://github.com/gadec-uk/departures-board/releases). Only the **firmware.bin** file should be uploaded via */update*. The other .bin files are not used for upgrades.
-
-These endpoints are only really useful for debugging/developers:
+- **/update** - for manual firmware updates. Download the latest binary from the [releases](https://github.com/gadec-uk/departures-board/releases). Only the **firmware.bin** file should be uploaded via */update*. The other .bin files are not used for upgrades. This method is *not* recommended for normal use.
 - **/info** - displays some basic information about the current running state.
 - **/formatffs** - formats the filing system, erasing the configuration & Web GUI (but not the WiFi credentials).
 - **/dir** - displays a (basic) directory listing of the file system with the ability to view/delete files.
