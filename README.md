@@ -21,7 +21,7 @@ This short video demonstrates the Departures Board in action...
 
 ### What you'll need
 
-1. An ESP32 D1 Mini board (or clone) - Micro-USB version. Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
+1. An ESP32 D1 Mini board (or clone) - The **Micro-USB** variant (with CH9102 recommended). Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
 2. A 3.12" 256x64 OLED Display Panel with SSD1322 display controller onboard. Cost around £12 from [AliExpress](https://www.aliexpress.com/item/1005005985371717.html).
 3. A 3D printed case using the [STL](https://github.com/gadec-uk/departures-board/tree/main/stl) files provided. If you don't have a 3D printer, there are several services you can use to get one printed.
 4. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
@@ -37,7 +37,7 @@ As supplied, the display is usually shipped with 8-bit 80XX mode enabled. This n
 
 ### Wiring Guide
 
-I recommend removing the pre-soldered header from the OLED display board as this will enable a snugger fit in the case. Next, solder the 4 SPI connections, plus power and ground. The wires **MUST** be soldered to the **BACK** of the ESP32 Mini board (to enable it to sit in place in the case).
+I recommend removing the pre-soldered header from the OLED display board as this will enable a snugger fit in the case. Next, solder the 4 SPI connections, plus power and ground. The wires **MUST** be soldered to the **BACK** of the ESP32 Mini board (the side without the components) to enable it to sit in place in the case.
 
 | OLED Pin | ESP32 Mini Pin |
 |:---------|:-------------:|
@@ -54,19 +54,21 @@ The project uses the Arduino framework and the ESP32 v3.2.0 core. If you want to
 
 Alternatively, you can download pre-compiled firmware images from the [releases](https://github.com/gadec-uk/departures-board/releases). These can be installed over the USB serial connection using [esptool](https://github.com/espressif/esptool). If you have python installed, install with *pip install esptool*. For convenience, a pre-compiled executable version for Windows is included [here](https://github.com/gadec-uk/departures-board/tree/main/esptool).
 
-Attach the ESP32 Mini board via it's USB port and determine which virtual serial port it is using. Use the following command to flash the firmware:
+If the board is not recognised you are probably using a version with the CP2104 USB-to-Serial chip. Drivers for the CP2104 are [here](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads)
+
+Attach the ESP32 Mini board via it's USB port and use the following command to flash the firmware:
 
 ```
-esptool.py --chip esp32 --port COMx --baud 460800 write_flash -z \
+esptool.py --chip esp32 --baud 460800 write_flash -z \
   0x1000 bootloader.bin \
   0xe000 boot_app0.bin \
   0x8000 partitions.bin \
   0x10000 firmware.bin
 ```
 
-Replace *COMx* with your actual port (COM3, /dev/ttyUSB0, etc.). If using the pre-compiled esptool.exe version on windows, you will need to type the entire command on one line:
+The tool should automatically find the correct serial port. If it fails to, you can manually specify the correct port by adding *--port COMx* (replace *COMx* with your actual port, e.g. COM3, /dev/ttyUSB0, etc.). If using the pre-compiled esptool.exe version on windows, you will need to type the entire command on one line:
 ```
-esptool --chip esp32 --port COMx --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
+.\esptool --chip esp32 --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
 ```
 
 Subsequent updates can be carried out automatically over-the-air or you can manually update from the Web GUI.
