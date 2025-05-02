@@ -12,7 +12,7 @@ This is an ESP32 based mini Departures Board replicating those at many UK railwa
 * Fully-featured Web UI - choose any station on the UK network
 * Automatic firmware updates (optional)
 * Displays the weather at the selected location (optional)
-* STL files provided for custom 3D printed case (**updated in v1.1**)
+* STL files provided for custom 3D printed case (**updated: now USB-C compatible**)
 
 This short video demonstrates the Departures Board in action...
 [![Departures Board Demo Video](https://github.com/user-attachments/assets/409b9a82-33a9-4351-ac87-f7e44ac56795)](https://youtu.be/N3pHk6yqwvo)
@@ -21,7 +21,7 @@ This short video demonstrates the Departures Board in action...
 
 ### What you'll need
 
-1. An ESP32 D1 Mini board (or clone) - The **Micro-USB** variant (with CH9102 recommended). Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
+1. An ESP32 D1 Mini board (or clone) - either USB-C or Micro-USB version with CH9102 recommended. Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
 2. A 3.12" 256x64 OLED Display Panel with SSD1322 display controller onboard. Cost around £12 from [AliExpress](https://www.aliexpress.com/item/1005005985371717.html).
 3. A 3D printed case using the [STL](https://github.com/gadec-uk/departures-board/tree/main/stl) files provided. If you don't have a 3D printer, there are several services you can use to get one printed.
 4. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
@@ -37,7 +37,7 @@ As supplied, the display is usually shipped with 8-bit 80XX mode enabled. This n
 
 ### Wiring Guide
 
-I recommend removing the pre-soldered header from the OLED display board as this will enable a snugger fit in the case. Next, solder the 4 SPI connections, plus power and ground. The wires **MUST** be soldered to the **BACK** of the ESP32 Mini board (the side without the components) to enable it to sit in place in the case.
+Solder the 4 SPI connections, plus power and ground. The wires **MUST** be soldered to the **BACK** of the ESP32 Mini board (the side without the components) to enable it to sit in place in the case.
 
 | OLED Pin | ESP32 Mini Pin |
 |:---------|:-------------:|
