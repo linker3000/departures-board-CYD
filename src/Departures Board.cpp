@@ -20,21 +20,25 @@
 
 // Release version number
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
+#include <ESPmDNS.h>
 #include <HTTPUpdateGithub.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <weatherClient.h>
+#include <stationData.h>
 #include <raildataXmlClient.h>
+#include <TfLdataClient.h>
 #include <githubClient.h>
+#include <webgraphics.h>
 
 #include <time.h>
 
@@ -54,11 +58,11 @@ static const char contentTypeText[] PROGMEM = "text/plain";
 static const char contentTypeHtml[] PROGMEM = "text/html";
 
 // Using NTP to set and maintain the clock
-static const char* ntpServer = "europe.pool.ntp.org";
+static const char ntpServer[] PROGMEM = "europe.pool.ntp.org";
 static struct tm timeinfo;
 
 // Local firmware updates via /update Web GUI
-static const char* updatePage =
+static const char updatePage[] PROGMEM =
 "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
 "<html><body><p>Firmware Upgrade - upload a <b>firmware.bin</b></p>"
 "<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
@@ -102,21 +106,35 @@ static const char uploadPage[] PROGMEM =
 "<h2>Upload a file to the file system</h2><form method='post' enctype='multipart/form-data'><input type='file' name='name'>"
 "<input class='button' type='submit' value='Upload'></form></body></html>";
 
+// /success page
+static const char successPage[] PROGMEM =
+"<html><body><h3>Upload completed successfully.</h3>\n"
+"<p><a href=\"/dir\">List file system directory</a></p>\n"
+"<h2>Upload another file</h2><form method=\"post\" action=\"/upload\" enctype=\"multipart/form-data\"><input type=\"file\" name=\"name\"><input class=\"button\" type=\"submit\" value=\"Upload\"></form>\n"
+"</body></html>";
+
 #define SCREEN_WIDTH 256 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 #define DIMMED_BRIGHTNESS 1 // OLED display brightness level when in sleep/screensaver mode
 
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 26, /* dc=*/ 5, /* reset=*/ U8X8_PIN_NONE);
 
-// Vertical line positions on the OLED display
+// Vertical line positions on the OLED display (National Rail)
 #define LINE0 0
 #define LINE1 13
 #define LINE2 28
 #define LINE3 41
 #define LINE4 55
 
+// Vertical line positions on the OLED display (Underground)
+#define ULINE0 0
+#define ULINE1 15
+#define ULINE2 28
+#define ULINE3 41
+#define ULINE4 56
+
 //
-// Define the fonts we use. These are exact copies of those used on the real National Rail Station Boards
+// Custom fonts - replicas of those used on the real display boards
 //
 static const uint8_t NatRailSmall9[985] U8G2_FONT_SECTION("NatRailSmall9") =
   "b\0\3\2\3\4\2\5\5\7\11\0\0\11\0\11\2\1\71\2r\3\300 \5\0\63\5!\7\71\245"
@@ -201,6 +219,49 @@ static const uint8_t NatRailClockLarge9[177] U8G2_FONT_SECTION("NatRailClockLarg
   "\201\234\252Ur\32\1\70\17\231T\307\205\24+\211\13)V\22\27\0\71\20\231T\307\205\24+\211\203"
   "\70\71*\211\13\0:\7r\235\2\31\1\0\0\0";
 
+static const uint8_t Underground10[1072] U8G2_FONT_SECTION("Underground10") =
+"`\0\3\2\3\4\3\5\5\7\12\0\377\11\377\11\0\1Y\2\300\4\27 \5\0\346\12!\7IB"
+"\211C\22\42\7\23^\212D\11#\21MB\233R\222\14J)\211\222dPJI\2$\17MB\253"
+"l)%\331\226DI\262E\0%\12MB\313i\312:\35\1&\17F\302\33-j\323\242DK\242"
+"$\221\2'\10\42\326\211!Q\0(\10J\302\31\245O\1)\11J\302\211(\351E\1*\14=F"
+"\253J\345\240,M\21\0+\12-J\253\60\32\244\60\2,\10\42\276\211!Q\0-\6\15R\213A"
+".\6\22\302\211!/\10?\306\353\264\317\0\60\14N\302\233!\11\375\230\14\11\0\61\7J\303\233\245"
+"\37\62\13N\302\233!\11\323b\307a\63\16N\302\233!\11\323\322\234\212\311\220\0\64\16N\302\313P"
+"K\242J\226\14cZ\1\65\16N\302\213C\232\16r\232\212\311\220\0\66\17N\302\233!\11\325tP"
+"Bc\62$\0\67\11N\302\213k\261\327\24\70\17N\302\233!\11\215\311\220\204\306dH\0\71\17N"
+"\302\233!\11\215\311\240\246b\62$\0:\10\62\306\211!\34\2;\11:\302\211!T\24\0<\10<"
+"\306\272\250\261\1=\10\34\316\212!\34\2>\10<\306\212\260\251\15?\15MB\233%\323\302\254\230C"
+"\21\0@\16MB\233%\263$J\242\14a\272\0A\14N\302\233!\11\215\303 :\6B\15N\302"
+"\213A\11\215\303\22\32\207\5C\14N\302\233!\11\325\36\223!\1D\13N\302\213A\11\375\70,\0"
+"E\14N\302\213CZ\35\206\264:\14F\13N\302\213CZ\35\206\264\25G\16N\302\233!\11\325\312"
+" \32\223!\1H\13N\302\213\320q\30D\307\0I\11KB\212%\352\313\0J\12MB\313\36\65"
+"-Y\0K\20N\302\213PK\242J&&YTK\302\0L\11N\302\213\264_\207\1M\16OB"
+"\214t[*R$E\252k\0N\15N\302\213P\334\224HJ\264\321\30O\14N\302\233!\11\375\230"
+"\14\11\0P\14N\302\213A\11\215\303\222\266\2Q\14V\276\233!\11\375\224$C\34R\16N\302\213"
+"A\11\215\303R\213jI\30S\17N\302\233!\11\325x\210S\61\31\22\0T\12OB\214C\26\367"
+"\33\0U\12N\302\213\320\37\223!\1V\14OB\214\324\327$\253\244\31\0W\16OB\214\324S$"
+"ER\244tK\0X\16OB\214TM\262JZ\311*\251\32Y\14OB\214\64\311*i\334\33\0"
+"Z\13OB\214C\234\366y\30\2[\10J\302\211\245/\2\134\11MB\213\260\332\261\0]\10J\302"
+"\11\245/\3^\6\23^\232\6_\6\15>\213A`\7\42\326\211A\12a\13\65F\233\65\31\64-"
+"\31\2b\14EF\213\60\34\222\314mP\0c\12\65F\233%\23k\311\2d\13EF\313\312\240\271"
+"%C\0e\14\65F\233%\33\206\60K\26\0f\13L\302*%\213\246\254\23\0g\14E>\233%"
+"sK\206\60Y\0h\13MB\213\60\34\222\314\267\0i\7AF\211d\30j\11S>\252\64\352i"
+"\1k\15EF\213\260\224\224\264$\252d\1l\10CF\212\250o\2m\16\67F\214E\211\42)\222"
+"\42)\222\12n\11\65F\213!\311\274\5o\12\65F\233%sK\26\0p\14E>\213!\311\334\6"
+"%\14\1q\13E>\233%sK\206\260\0r\12\64\306\212d\210\262\66\0s\12\65F\233%]\265"
+"d\1t\12D\306\232,\32\222\254Qu\11\65F\213\314[\62\4v\12\65F\213\314-\251E\0w"
+"\13\67F\214\324)R\272%\0x\13\65F\213,\251\205YR\13y\13E>\213\314[\62\204\203\2"
+"z\12\65F\213A+f\331 {\21OB\234,\321\226\245\247\310\242&Y\222,\1|\6IB\213"
+"\7}\14\265\312\273d\320\242lP\62\0~\21N\302\233!\31\206P\34\36\24e\30\222(\1\16"
+"N\302\213$\314\224(\315\222,\351?\0\0\0";
+
+static const uint8_t UndergroundClock8[150] U8G2_FONT_SECTION("UndergroundClock8") =
+"\13\0\3\3\3\4\2\2\5\7\10\0\0\10\0\10\0\0\0\0\0\0}\60\12G\305\251\310\370&\251"
+"\0\61\10\304\305\222\234\364\0\62\15G\305\251\310\244B\331L(;\10\63\15G\305\251\310\244\42\62\215"
+"&\251\0\64\15G\305\24\316H\22%\311Q*\1\65\14G\305\70\310\250f\32MR\1\66\14G\305"
+"\251\310\250\26\31\233\244\2\67\12G\305\70\310\204z\225\2\70\15G\305\251\310h\222\212\214MR\1\71"
+"\15G\305\251\310h\22+\215&\251\0:\6\262\257 \22\0\0\0";
+
 //
 // GitHub Client for firmware updates
 //  - Pass a GitHub token if updates are to be loaded from a private repository
@@ -223,6 +284,7 @@ int waCurrentMinor = 0;             // Holds the minor version number of the web
 unsigned long lastWiFiReconnect=0;  // Last WiFi reconnection time (millis)
 bool firstLoad = true;              // Are we loading for the first time (no station config)?
 int prevProgressBarPosition=0;      // Used for progress bar smooth animation
+int startupProgressPercent;         // Initialisation progress
 bool wifiConnected = false;         // Connected to WiFi?
 unsigned long nextDataUpdate = 0;   // Next National Rail update time (millis)
 int dataLoadSuccess = 0;            // Count of successful data downloads
@@ -231,9 +293,8 @@ unsigned long lastLoadFailure = 0;  // When the last failure occurred
 int dateWidth;                      // Width of the displayed date in pixels
 int dateDay;                        // Day of the month of displayed date
 
-// Default network hostname
-char hostname[20] = "Departures Board";
-char myUrl[24];
+char hostname[20] = "DeparturesBoard"; // Default network hostname (WiFi and mDNS - can be manually overridden in config.json)
+char myUrl[24];                     // Stores the board's own url
 
 // WiFi Manager status
 bool wifiConfigured = false;        // Is WiFi configured successfully?
@@ -245,12 +306,17 @@ float stationLat=0;                 // Selected station Latitude/Longitude (used
 float stationLon=0;
 char callingCrsCode[4];             // Station code to filter routes on
 char callingStation[45];            // Calling filter station friendly name
+String tflAppkey = "";              // TfL API Key
+char tubeId[13];                    // Underground station naptan id
+String tubeName="";                 // Underground Station Name
+bool tubeMode = false;              // Mode for the board - National Rail or London Underground
 
 // Coach class availability
-const char* firstClassSeating = " First class seating only.";
-const char* standardClassSeating = " Standard class seating only.";
-const char* dualClassSeating = " First and Standard class seating available.";
+static const char firstClassSeating[] PROGMEM = " First class seating only.";
+static const char standardClassSeating[] PROGMEM = " Standard class seating only.";
+static const char dualClassSeating[] PROGMEM = " First and Standard class seating available.";
 
+// Animation vars
 int numMessages=0;
 int scrollStopsXpos = 0;
 int scrollStopsYpos = 0;
@@ -259,7 +325,7 @@ bool isScrollingStops = false;
 int currentMessage = 0;
 int prevMessage = 0;
 int prevScrollStopsLength = 0;
-char line2[4+MAXBOARDMESSAGES][MAXMESSAGESIZE+12]; // All the possible messages to display
+char line2[4+MAXBOARDMESSAGES][MAXMESSAGESIZE+12];
 
 // Line 3 (additional services)
 int line3Service = 0;
@@ -269,6 +335,10 @@ int prevService = 0;
 bool isShowingVia=false;
 unsigned long serviceTimer=0;
 unsigned long viaTimer=0;
+bool showingMessage = false;
+// TfL specific animation
+int scrollPrimaryYpos = 0;
+bool isScrollingPrimary = false;
 
 char displayedTime[29] = "";        // The currently displayed time
 unsigned long nextClockUpdate = 0;  // Next time we need to check/update the clock display
@@ -277,6 +347,7 @@ unsigned long refreshTimer = 0;
 
 #define SCREENSAVERINTERVAL 10000   // How often the screen is changed in sleep mode (ms - 10 seconds)
 #define DATAUPDATEINTERVAL 150000   // How often we fetch data from National Rail (ms - 2.5 mins)
+#define UGDATAUPDATEINTERVAL 30000  // How often we fetch data from TfL (ms - 30 secs)
 
 // Weather Stuff
 char weatherMsg[46];                            // Current weather at station location
@@ -284,9 +355,9 @@ unsigned long nextWeatherUpdate = 0;            // When the next weather update 
 String openWeatherMapApiKey = "";               // The API key to use
 weatherClient currentWeather;                   // Create a weather client
 
-bool noDataLoaded = true;                       // True if no data received for that station
+bool noDataLoaded = true;                       // True if no data received for the station
 int lastUpdateResult = 0;                       // Result of last data refresh
-unsigned long lastDataLoadTime = 0;             // How long it took to load and process the last refresh
+unsigned long lastDataLoadTime = 0;             // Timestamp of last data load
 
 #define MAXHOSTSIZE 48                          // Maximum size of the wsdl Host
 #define MAXAPIURLSIZE 48                        // Maximum size of the wsdl url
@@ -295,8 +366,13 @@ char wsdlHost[MAXHOSTSIZE];                     // wsdl Host name
 char wsdlAPI[MAXAPIURLSIZE];                    // wsdl API url
 
 // RailData XML Client
-raildataXmlClient raildata;                     // Create a raildata Client
-rdStation station;                              // Holds station data
+raildataXmlClient* raildata = nullptr;
+// TfL Client
+TfLdataClient* tfldata = nullptr;
+// Station Data (shared)
+rdStation station;
+// Station Messages (shared)
+stnMessages messages;
 
 /*
  * Graphics helper functions for OLED panel
@@ -315,14 +391,12 @@ int getStringWidth(const __FlashStringHelper *message) {
   String temp = String(message);
   char buff[temp.length()+1];
   temp.toCharArray(buff,sizeof(buff));
-
   return u8g2.getStrWidth(buff);
 }
 
 void drawTruncatedText(const char *message, int line) {
   char buff[strlen(message)+4];
   int maxWidth = SCREEN_WIDTH - 6;
-
   strcpy(buff,message);
   int i = strlen(buff);
   while (u8g2.getStrWidth(buff)>maxWidth && i) buff[i--] = '\0';
@@ -487,7 +561,8 @@ void showNoDataScreen() {
   u8g2.clearBuffer();
   char msg[60];
   u8g2.setFont(NatRailTall12);
-  sprintf(msg,"No data available for station code \"%s\"",crsCode);
+  if (tubeMode) strcpy(msg,"No data available for the selected station.");
+  else sprintf(msg,"No data available for station code \"%s\".",crsCode);
   centreText(msg,-1);
   u8g2.setFont(NatRailSmall9);
   centreText(F("Please ensure you have selected a valid station"),14);
@@ -537,21 +612,26 @@ void showTokenErrorScreen() {
   char msg[60];
   u8g2.clearBuffer();
   u8g2.setFont(NatRailTall12);
-  centreText(F("Access to the National Rail database denied."),-1);
+  if (tubeMode) {
+    centreText(F("Access to the TfL database denied."),-1);
+  } else {
+    centreText(F("Access to the National Rail database denied."),-1);
+    strcpy(nrToken,"");
+  }
   u8g2.setFont(NatRailSmall9);
-  centreText(F("You must enter your personal auth token, please"),14);
+  centreText(F("You must enter a valid auth token, please"),14);
   centreText(F("check you have entered it correctly below:"),26);
   sprintf(msg,"%s/keys.htm",myUrl);
   centreText(msg,40);
   u8g2.sendBuffer();
-  strcpy(nrToken,"");
 }
 
 void showCRSErrorScreen() {
   u8g2.clearBuffer();
   char msg[60];
   u8g2.setFont(NatRailTall12);
-  sprintf(msg,"The station code \"%s\" is not valid.",crsCode);
+  if (tubeMode) strcpy(msg,"The Underground station is not valid");
+  else sprintf(msg,"The station code \"%s\" is not valid.",crsCode);
   centreText(msg,-1);
   u8g2.setFont(NatRailSmall9);
   centreText(F("Please ensure you have selected a valid station."),14);
@@ -635,7 +715,7 @@ String getBuildTime() {
   return String(buildtime);
 }
 
-// Check if the clock needs to be updated
+// Check if the NR clock needs to be updated
 void doClockCheck() {
   if (!firstLoad) {
     if (millis()>nextClockUpdate) {
@@ -657,7 +737,7 @@ bool isSnoozing() {
   }
 }
 
-// Callback from the raildataXMLclient library when processing data. As this can take some time, this callback is used to try and keep the clock working
+// Callback from the raildataXMLclient library when processing data. As this can take some time, this callback is used to keep the clock working
 // and to provide progress on the initial load at boot
 void raildataCallback(int stage, int nServices) {
   if (firstLoad) {
@@ -687,15 +767,20 @@ void loadApiKeys() {
       if (!error) {
         JsonObject settings = doc.as<JsonObject>();
 
-        if (settings["nrToken"].is<const char*>()) {
-          strlcpy(nrToken, settings["nrToken"], sizeof(nrToken));
+        if (settings[F("nrToken")].is<const char*>()) {
+          strlcpy(nrToken, settings[F("nrToken")], sizeof(nrToken));
         }
 
-        if (settings["owmToken"].is<const char*>()) {
-          openWeatherMapApiKey = settings["owmToken"].as<String>();
+        if (settings[F("owmToken")].is<const char*>()) {
+          openWeatherMapApiKey = settings[F("owmToken")].as<String>();
         }
+
+        if (settings[F("appKey")].is<const char*>()) {
+          tflAppkey = settings[F("appKey")].as<String>();
+        }
+
       } else {
-        // JSON deserialization failed
+        // JSON deserialization failed - TODO
       }
       file.close();
     }
@@ -713,7 +798,7 @@ void loadConfig() {
       if (!error) {
         JsonObject settings = doc.as<JsonObject>();
 
-        if (settings["crs"].is<const char*>())        strlcpy(crsCode, settings["crs"], sizeof(crsCode));
+        if (settings[F("crs")].is<const char*>())        strlcpy(crsCode, settings[F("crs")], sizeof(crsCode));
         if (settings["callingCrs"].is<const char*>()) strlcpy(callingCrsCode, settings["callingCrs"], sizeof(callingCrsCode));
         if (settings["callingStation"].is<const char*>()) strlcpy(callingStation, settings["callingStation"], sizeof(callingStation));
         if (settings["hostname"].is<const char*>())   strlcpy(hostname, settings["hostname"], sizeof(hostname));
@@ -730,14 +815,24 @@ void loadConfig() {
         if (settings["brightness"].is<int>())         brightness = settings["brightness"];
         if (settings["lat"].is<float>())              stationLat = settings["lat"];
         if (settings["lon"].is<float>())              stationLon = settings["lon"];
+
+        if (settings[F("tube")].is<bool>())              tubeMode = settings[F("tube")];
+        if (settings[F("tubeId")].is<const char*>())     strlcpy(tubeId, settings[F("tubeId")], sizeof(tubeId));
+        if (settings[F("tubeName")].is<const char*>())   tubeName = settings[F("tubeName")].as<String>();
+
+        // Clean up the underground station name
+        if (tubeName.endsWith(F(" Underground Station"))) tubeName.remove(tubeName.length()-20);
+        else if (tubeName.endsWith(F(" DLR Station"))) tubeName.remove(tubeName.length()-12);
+        else if (tubeName.endsWith(F(" (H&C Line)"))) tubeName.remove(tubeName.length()-11);
+
       } else {
-        // JSON deserialization failed
+        // JSON deserialization failed - TODO
       }
       file.close();
     }
   } else {
     // Write a default config file so that the Web GUI works initially
-    String defaultConfig = "{\"crs\":\"\",\"station\":\"\",\"lat\":0,\"lon\":0,\"weather\":" + String((openWeatherMapApiKey.length())?"true":"false") + F(",\"sleep\":false,\"showDate\":false,\"showBus\":false,\"update\":true,\"sleepStarts\":23,\"sleepEnds\":8,\"brightness\":20}");
+    String defaultConfig = "{\"crs\":\"\",\"station\":\"\",\"lat\":0,\"lon\":0,\"weather\":" + String((openWeatherMapApiKey.length())?"true":"false") + F(",\"sleep\":false,\"showDate\":false,\"showBus\":false,\"update\":true,\"sleepStarts\":23,\"sleepEnds\":8,\"brightness\":20,\"tube\":false}");
     saveFile("/config.json",defaultConfig);
     strcpy(crsCode,"");
   }
@@ -920,7 +1015,7 @@ bool checkForWebAppUpdate(bool manual) {
 // Request a data update via the raildataClient
 bool getStationBoard() {
   if (!firstLoad) showUpdateIcon(true);
-  lastUpdateResult = raildata.updateDepartures(&station,crsCode,nrToken,MAXBOARDSERVICES,enableBus,callingCrsCode);
+  lastUpdateResult = raildata->updateDepartures(&station,&messages,crsCode,nrToken,MAXBOARDSERVICES,enableBus,callingCrsCode);
   nextDataUpdate = millis()+DATAUPDATEINTERVAL; // default update freq
   if (lastUpdateResult == UPD_SUCCESS || lastUpdateResult == UPD_NO_CHANGE) {
     showUpdateIcon(false);
@@ -991,26 +1086,8 @@ void drawServiceLine(int line, int y) {
     case 2:
       strcpy(ordinal,"3rd ");
       break;
-    case 3:
-      strcpy(ordinal,"4th ");
-      break;
-    case 4:
-      strcpy(ordinal,"5th ");
-      break;
-    case 5:
-      strcpy(ordinal,"6th ");
-      break;
-    case 6:
-      strcpy(ordinal,"7th ");
-      break;
-    case 7:
-      strcpy(ordinal,"8th ");
-      break;
-    case 8:
-      strcpy(ordinal,"9th ");
-      break;
     default:
-      sprintf(ordinal,"%d ",line+1);
+      sprintf(ordinal,"%dth ",line+1);
       break;
   }
 
@@ -1019,7 +1096,7 @@ void drawServiceLine(int line, int y) {
 
   if (line<station.numServices) {
     u8g2.drawStr(0,y-1,ordinal);
-    int destPos = u8g2.drawStr(23,y-1,station.service[line].sTime) + 4 + 23;
+    int destPos = u8g2.drawStr(23,y-1,station.service[line].sTime) + 27;
     char plat[3];
     if (station.platformAvailable) {
       if (station.service[line].platform[0] && strlen(station.service[line].platform)<3 && station.service[line].serviceType == TRAIN) {
@@ -1062,7 +1139,7 @@ void drawServiceLine(int line, int y) {
   }
 }
 
-// Draw and animate the Departures Board
+// Draw the initial Departures Board
 void drawStationBoard() {
   numMessages=0;
   if (firstLoad) {
@@ -1110,15 +1187,15 @@ void drawStationBoard() {
     if (station.service[0].via[0]) viaTimer=millis()+4000;
     if (station.service[0].isCancelled) {
       // This train is cancelled
-      if (station.service[0].serviceMessage[0]) {
-        strcpy(line2[0],station.service[0].serviceMessage);
+      if (station.serviceMessage[0]) {
+        strcpy(line2[0],station.serviceMessage);
         numMessages=1;
       }
     } else {
       // The train is not cancelled
-      if (station.service[0].isDelayed && station.service[0].serviceMessage[0]) {
+      if (station.service[0].isDelayed && station.serviceMessage[0]) {
         // The train is delayed and there's a reason
-        strcpy(line2[0],station.service[0].serviceMessage);
+        strcpy(line2[0],station.serviceMessage);
         numMessages++;
       }
       if (station.calling[0]) {
@@ -1126,7 +1203,7 @@ void drawStationBoard() {
         sprintf(line2[numMessages],"Calling at: %s",station.calling);
         numMessages++;
       }
-      if (strcmp(station.service[0].origin, station.location)==0) {
+      if (strcmp(station.origin, station.location)==0) {
         // Service originates at this station
         if (station.service[0].opco[0]) {
           sprintf(line2[numMessages],"This %s service starts here.",station.service[0].opco);
@@ -1150,14 +1227,14 @@ void drawStationBoard() {
         // Service originates elsewhere
         strcpy(line2[numMessages],"");
         if (station.service[0].opco[0]) {
-          if (station.service[0].origin[0]) {
-            sprintf(line2[numMessages],"This is the %s service from %s.",station.service[0].opco,station.service[0].origin);
+          if (station.origin[0]) {
+            sprintf(line2[numMessages],"This is the %s service from %s.",station.service[0].opco,station.origin);
           } else {
             sprintf(line2[numMessages],"This is the %s service.",station.service[0].opco);
           }
         } else {
-          if (station.service[0].origin[0]) {
-            sprintf(line2[numMessages],"This service originated at %s.",station.service[0].origin);
+          if (station.origin[0]) {
+            sprintf(line2[numMessages],"This service originated at %s.",station.origin);
           }
         }
         // Add the seating if available
@@ -1181,8 +1258,8 @@ void drawStationBoard() {
       }
     }
     // Add any nrcc messages
-    for (int i=0;i<station.numMessages;i++) {
-      strcpy(line2[numMessages],station.nrccMessages[i]);
+    for (int i=0;i<messages.numMessages;i++) {
+      strcpy(line2[numMessages],messages.messages[i]);
       numMessages++;
     }
     // Setup for the first message to rollover to
@@ -1192,15 +1269,170 @@ void drawStationBoard() {
     blankArea(0,LINE2,256,LINE4-LINE2);
     u8g2.setFont(NatRailTall12);
     centreText(F("There are no scheduled services at this station."),LINE1-1);
-    numMessages = station.numMessages;
-    for (int i=0;i<station.numMessages;i++) {
-      strcpy(line2[i],station.nrccMessages[i]);
+    numMessages = messages.numMessages;
+    for (int i=0;i<messages.numMessages;i++) {
+      strcpy(line2[i],messages.messages[i]);
     }
     // Setup for the first message to rollover to
     isScrollingStops=false;
     currentMessage=numMessages-1;
   }
   u8g2.setFont(NatRailSmall9);
+  u8g2.sendBuffer();
+}
+
+/*
+ *
+ * London Underground Board
+ *
+ */
+
+// Draw the TfL clock (if the time has changed)
+void drawCurrentTimeUG(bool update) {
+  char sysTime[29];
+  getLocalTime(&timeinfo);
+
+  sprintf(sysTime,"%02d:%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+  if (strcmp(displayedTime,sysTime)) {
+    u8g2.setFont(UndergroundClock8);
+    blankArea(99,ULINE4,58,8);
+    u8g2.drawStr(99,ULINE4-1,sysTime);
+    if (update) u8g2.updateDisplayArea(12,7,8,1);
+    strcpy(displayedTime,sysTime);
+    u8g2.setFont(Underground10);
+
+    if (dateEnabled && timeinfo.tm_mday!=dateDay) {
+      // Need to update the date on screen
+      strftime(sysTime,29,"%a %d %b",&timeinfo);
+      int newDateWidth = getStringWidth(sysTime);
+      blankArea(SCREEN_WIDTH-dateWidth,ULINE0,dateWidth,10);
+      u8g2.drawStr(SCREEN_WIDTH-newDateWidth,ULINE0-1,sysTime);
+      dateWidth = newDateWidth;
+      dateDay = timeinfo.tm_mday;
+      if (update) u8g2.sendBuffer();  // Just refresh on new date
+    }
+  }
+}
+
+// Callback from the TfLdataClient library when processing data. Shows progress at startup and keeps clock running
+void tflCallback() {
+  if (firstLoad) {
+    if (startupProgressPercent<95) {
+      startupProgressPercent+=5;
+      progressBar(F("Initialising TfL interface"),startupProgressPercent);
+    }
+  } else if (millis()>nextClockUpdate) {
+    nextClockUpdate = millis()+500;
+    drawCurrentTimeUG(true);
+  }
+}
+
+bool getUndergroundBoard() {
+  if (!firstLoad) showUpdateIcon(true);
+  lastUpdateResult = tfldata->updateArrivals(&station,&messages,tubeId,tflAppkey,&tflCallback);
+  nextDataUpdate = millis()+UGDATAUPDATEINTERVAL; // default update freq
+  if (lastUpdateResult == UPD_SUCCESS || lastUpdateResult == UPD_NO_CHANGE) {
+    showUpdateIcon(false);
+    lastDataLoadTime=millis();
+    noDataLoaded=false;
+    dataLoadSuccess++;
+    return true;
+  } else if (lastUpdateResult == UPD_DATA_ERROR || lastUpdateResult == UPD_TIMEOUT) {
+    lastLoadFailure=millis();
+    dataLoadFailure++;
+    nextDataUpdate = millis() + 30000; // 30 secs
+    showUpdateIcon(false);
+    return false;
+  } else if (lastUpdateResult == UPD_UNAUTHORISED) {
+    showTokenErrorScreen();
+    while (true) { server.handleClient(); yield();}
+  } else {
+    showUpdateIcon(false);
+    dataLoadFailure++;
+    return false;
+  }
+}
+
+void drawUndergroundService(int serviceId, int y) {
+  char serviceData[8+MAXLINESIZE+MAXLOCATIONSIZE];
+
+  u8g2.setFont(Underground10);
+  blankArea(0,y,256,10);
+
+  if (serviceId < station.numServices) {
+    sprintf(serviceData,"%d %s",serviceId+1,station.service[serviceId].destination);
+    u8g2.drawStr(0,y-1,serviceData);
+    if (serviceId || station.service[serviceId].timeToStation > 30) {
+      if (station.service[serviceId].timeToStation <= 60) u8g2.drawStr(SCREEN_WIDTH-19,y-1,"Due");
+      else {
+        int mins = (station.service[serviceId].timeToStation + 30) / 60; // Round to nearest minute
+        sprintf(serviceData,"%d",mins);
+        if (mins==1) u8g2.drawStr(SCREEN_WIDTH-22,y-1,"min"); else u8g2.drawStr(SCREEN_WIDTH-22,y-1,"mins");
+        u8g2.drawStr(SCREEN_WIDTH-27-(strlen(serviceData)*7),y-1,serviceData);
+      }
+    }
+  }
+}
+
+// Draw/update the Underground Arrivals Board
+void drawUndergroundBoard() {
+  numMessages = messages.numMessages;
+  if (line3Service==0) line3Service=1;
+  if (firstLoad) {
+    // Clear the entire screen for the first load since boot up/wake from sleep
+    u8g2.clearBuffer();
+    u8g2.setContrast(brightness);
+    firstLoad=false;
+  } else {
+      // Clear the top three lines
+      blankArea(0,ULINE0,256,ULINE3-1);
+  }
+  //u8g2.setFont(Underground10);
+  u8g2.setFont(NatRailSmall9);
+  if (dateEnabled) {
+    // Get the date
+    char sysTime[29];
+    getLocalTime(&timeinfo);
+    strftime(sysTime,29,"%a %d %b",&timeinfo);
+    dateWidth = getStringWidth(sysTime);
+    dateDay = timeinfo.tm_mday;
+    u8g2.drawStr(SCREEN_WIDTH-dateWidth,ULINE0-1,sysTime); // right-aligned date top
+    if ((SCREEN_WIDTH-getStringWidth(tubeName.c_str()))/2 < dateWidth+8) {
+      // Station name left aligned
+      u8g2.drawStr(0,ULINE0-1,tubeName.c_str());
+    } else {
+      centreText(tubeName.c_str(),ULINE0-1);
+    }
+  } else {
+    centreText(tubeName.c_str(),ULINE0-1);
+  }
+
+  if (station.boardChanged) {
+    // prepare to scroll up primary services
+    scrollPrimaryYpos = 11;
+    isScrollingPrimary = true;
+    // reset line3
+    line3Service = 99;
+    prevScrollStopsLength = 0;
+    blankArea(0,ULINE3,256,11);
+    serviceTimer=0;
+  } else {
+    // Draw the primary service line(s)
+    if (station.numServices) {
+      drawUndergroundService(0,ULINE1);
+      if (station.numServices>1) drawUndergroundService(1,ULINE2);
+    } else {
+      u8g2.setFont(Underground10);
+      centreText(F("There are no scheduled arrivals at this station."),ULINE1-1);
+    }
+  }
+  for (int i=0;i<messages.numMessages;i++) {
+    strcpy(line2[i],messages.messages[i]);
+  }
+  // Add attribution msg
+  strcpy(line2[messages.numMessages],"Powered by TfL Open Data");
+  messages.numMessages++;
+
   u8g2.sendBuffer();
 }
 
@@ -1266,9 +1498,38 @@ bool handleStreamFile(String filename) {
   } else return false;
 }
 
+// Stream a file stored in PROGMEM flash (default graphics are now included in the firmware image)
+void handleStreamFlashFile(String filename, const uint8_t *filedata, size_t contentLength) {
+
+  String contentType = getContentType(filename);
+  WiFiClient client = server.client();
+  // Send the headers
+  client.println(F("HTTP/1.1 200 OK"));
+  client.print(F("Content-Type: "));
+  client.println(contentType);
+  client.print(F("Content-Length: "));
+  client.println(contentLength);
+  client.println("Connection: close");
+  client.println(); // End of headers
+
+  const size_t chunkSize = 512;
+  uint8_t buffer[chunkSize];
+  size_t sent = 0;
+
+  while (sent < contentLength) {
+    size_t toSend = min(chunkSize, contentLength - sent);
+    // Copy from PROGMEM to buffer
+    for (size_t i=0;i<toSend;i++) {
+      buffer[i] = pgm_read_byte(&filedata[sent + i]);
+    }
+    client.write(buffer, toSend);
+    sent += toSend;
+  }
+}
+
 // Save the API keys POSTed from the keys.htm page
 // If an OWM key is passed, this is tested before being committed to the file system. It's not possible
-// to check the National Rail token at this point.
+// to check the National Rail or TfL tokens at this point.
 //
 void handleSaveKeys() {
   String newJSON, owmToken;
@@ -1322,7 +1583,7 @@ void handleSaveSettings() {
 
   if ((server.method() == HTTP_POST) && (server.hasArg("plain"))) {
     newJSON = server.arg("plain");
-    saveFile("/config.json",newJSON);
+    saveFile(F("/config.json"),newJSON);
     if (!crsCode[0]) {
       // First time setup, we need a full reboot
       sendResponse(200,F("Configuration saved. The Departures Board will now restart."));
@@ -1330,8 +1591,13 @@ void handleSaveSettings() {
       ESP.restart();
     } else {
       sendResponse(200,F("Configuration updated. The Departures Board will update shortly."));
+      bool previousMode = tubeMode;
       // Reload the new settings
       loadConfig();
+      u8g2.clearBuffer();
+      drawStartupHeading();
+      u8g2.updateDisplay();
+
       // Force an update asap
       nextDataUpdate = 0;
       nextWeatherUpdate = 0;
@@ -1343,6 +1609,7 @@ void handleSaveSettings() {
       viaTimer=0;
       timer=0;
       prevProgressBarPosition=70;
+      startupProgressPercent=70;
       currentMessage=0;
       prevMessage=0;
       prevScrollStopsLength=0;
@@ -1350,13 +1617,31 @@ void handleSaveSettings() {
       line3Service=0;
       prevService=0;
       if (!weatherEnabled) strcpy(weatherMsg,"");
-
-      u8g2.clearBuffer();
-      drawStartupHeading();
-      u8g2.updateDisplay();
+      if (previousMode!=tubeMode) {
+        // Board mode has changed!
+        if (previousMode) {
+          // Delete the tfl client from memory
+          delete tfldata;
+          tfldata = nullptr;
+          // Create the NR client
+          raildata = new raildataXmlClient();
+          int res = raildata->init(wsdlHost, wsdlAPI, &raildataCallback);
+          if (res != UPD_SUCCESS) {
+            showWsdlFailureScreen();
+            while (true) { server.handleClient(); yield();}
+          }
+        } else {
+          // Delete the NR client from memory
+          delete raildata;
+          raildata = nullptr;
+          // Create the TfL client
+          tfldata = new TfLdataClient();
+        }
+      }
+      if (tubeMode) progressBar(F("Initialising TfL interface"),70);
     }
   } else {
-    // Something went wrong saving the config file!
+    // Something went wrong saving the config file
     sendResponse(400,F("The configuration could not be updated. The Departures Board will restart."));
     delay(1000);
     ESP.restart();
@@ -1400,8 +1685,9 @@ void handleFileList() {
     }
   }
 
-  output += "</table><br><br>" + getFSInfo() + F("</body></html>");
-  server.send(200,F("text/html"),output);
+  output += F("</table><br>");
+  output += getFSInfo() + F("<p><a href=\"/upload\">Upload</a> a file</p></body></html>");
+  server.send(200,contentTypeHtml,output);
 }
 
 // Stream a file to the browser
@@ -1431,7 +1717,10 @@ void handleDelete() {
 void handleFormatFFS() {
   String message;
 
-  if (LittleFS.format()) message="File System was successfully formatted\n\n" + getFSInfo(); else message=F("File System could not be formatted!");
+  if (LittleFS.format()) {
+    message=F("File System was successfully formatted\n\n");
+    message+=getFSInfo();
+  } else message=F("File System could not be formatted!");
   sendResponse(200,message);
 }
 
@@ -1450,12 +1739,17 @@ void handleFileUpload() {
       fsUploadFile.write(upload.buf, upload.currentSize);
     }
   } else if (upload.status == UPLOAD_FILE_END) {
+    WiFiClient client = server.client();
     if (fsUploadFile) {
       fsUploadFile.close();
-      sendResponse(200,F("Upload complete"));
+      client.println(F("HTTP/1.1 302 Found"));
+      client.println(F("Location: /success"));
+      client.println(F("Connection: close"));
     } else {
-      sendResponse(500,F("Error: Could not create file."));
+      client.println(F("HTTP/1.1 500 Could not create file"));
+      client.println(F("Connection: close"));
     }
+    client.println();
   }
 }
 
@@ -1467,10 +1761,16 @@ void handleFileUpload() {
 void handleNotFound() {
     if ((LittleFS.exists(server.uri())) && (server.method() == HTTP_GET)) {
       handleStreamFile(server.uri());
-    } else sendResponse(404,F("Not Found"));
+    } else if (server.uri() == F("/nrelogo.webp")) handleStreamFlashFile(server.uri(), nrelogo, sizeof(nrelogo));
+    else if (server.uri() == F("/tfllogo.webp")) handleStreamFlashFile(server.uri(), tfllogo, sizeof(tfllogo));
+    else if (server.uri() == F("/tube.webp")) handleStreamFlashFile(server.uri(), tubeicon, sizeof(tubeicon));
+    else if (server.uri() == F("/nr.webp")) handleStreamFlashFile(server.uri(), nricon, sizeof(nricon));
+    else if (server.uri() == F("/favicon.svg")) handleStreamFlashFile(server.uri(), favicon, sizeof(favicon));
+    else if (server.uri() == F("/favicon.png")) handleStreamFlashFile(server.uri(), faviconpng, sizeof(faviconpng));
+    else sendResponse(404,F("Not Found"));
 }
 
-// Send some useful system station information to the browser
+// Send some useful system & station information to the browser
 void handleInfo() {
   unsigned long uptime = millis();
   char sysUptime[30];
@@ -1480,17 +1780,24 @@ void handleInfo() {
 
   sprintf(sysUptime,"%d days, %d hrs, %d min", days,hours,minutes);
 
-  String message = "Hostname: " + String(hostname) + F("\nFirmware version: v") + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + " " + getBuildTime() + F("\nSystem uptime: ") + String(sysUptime) + F("\nFree RAM: ") + String(ESP.getFreeHeap()) + F("\nFree sketch space: ") + String(ESP.getFreeSketchSpace()) + F("\nFree disk space: ") + String(LittleFS.totalBytes() - LittleFS.usedBytes());
+  String message = "Hostname: " + String(hostname) + F("\nFirmware version: v") + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + " " + getBuildTime() + F("\nSystem uptime: ") + String(sysUptime) + F("\nFree Heap: ") + String(ESP.getFreeHeap()) + F("\nFree LittleFS space: ") + String(LittleFS.totalBytes() - LittleFS.usedBytes());
   message+="\nCore Plaform: " + String(ESP.getCoreVersion()) + F("\nCPU speed: ") + String(ESP.getCpuFreqMHz()) + F("MHz\nCPU Temperature: ") + String(temperatureRead()) + F("\nWiFi network: ") + String(WiFi.SSID()) + F("\nWiFi signal strength: ") + String(WiFi.RSSI()) + F("dB");
   getLocalTime(&timeinfo);
 
   sprintf(sysUptime,"%02d:%02d:%02d %02d/%02d/%04d",timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year+1900);
   message+="\nSystem clock: " + String(sysUptime);
-  message+="\nCRS station code: " + String(crsCode) + F("\nSuccessful: ") + String(dataLoadSuccess) + F("\nFailures: ") + String(dataLoadFailure) + F("\nTime since last data load: ") + String((int)((millis()-lastDataLoadTime)/1000)) + F(" seconds");
+  message+="\nCRS station code: " + String(crsCode) + F("\nNaptan station code: ") + String(tubeId) + F("\nSuccessful: ") + String(dataLoadSuccess) + F("\nFailures: ") + String(dataLoadFailure) + F("\nTime since last data load: ") + String((int)((millis()-lastDataLoadTime)/1000)) + F(" seconds");
   if (dataLoadFailure) message+="\nTime since last failure: " + String((int)((millis()-lastLoadFailure)/1000)) + F(" seconds");
-  message+="\nLast Result: " + raildata.getLastError();
-  message+="\nServices: " + String(station.numServices) + F("\nMessages: ") + String(station.numMessages) + F("\n");
-  for (int i=0;i<station.numMessages;i++) message+=String(station.nrccMessages[i]) + "\n";
+  message+=F("\nLast Result: ");
+  if (!tubeMode) {
+    message+=raildata->getLastError();
+  } else {
+    message+=tfldata->lastErrorMsg;
+  }
+  message+="\nServices: " + String(station.numServices) + F("\nMessages: ");
+  if (tubeMode) message+=String(messages.numMessages-1); else message+=String(messages.numMessages);
+  message+=F("\n");
+  for (int i=0;i<messages.numMessages;i++) message+=String(messages.messages[i]) + "\n";
   message+=F("\nUpdate result code: ");
   switch (lastUpdateResult) {
     case UPD_SUCCESS:
@@ -1521,7 +1828,6 @@ void handleInfo() {
       message+="ERROR CODE (" + String(lastUpdateResult) + F(")");
       break;
   }
-
   sendResponse(200,message);
 }
 
@@ -1724,217 +2030,11 @@ void updateCurrentWeather() {
 /*
  * Setup / Loop functions
 */
-void setup(void) {
-  // These are the default wsdl XML SOAP entry points. They can be overridden in the config.json file if necessary
-  strncpy(wsdlHost,"lite.realtime.nationalrail.co.uk",sizeof(wsdlHost));
-  strncpy(wsdlAPI,"/OpenLDBWS/wsdl.aspx?ver=2021-11-01",sizeof(wsdlAPI));
-  u8g2.begin();                       // Start the OLED panel
-  u8g2.setContrast(brightness);       // Initial brightness
-  u8g2.setDrawColor(1);               // Only a monochrome display, so set the colour to "on"
-  u8g2.setFontMode(1);                // Transparent fonts
-  u8g2.setFontRefHeightAll();         // Count entire font height
-  u8g2.setFontPosTop();               // Reference from top
-  drawStartupHeading();               // Draw the startup heading
-  u8g2.sendBuffer();                  // Send to OLED display
-  progressBar(F("Initialising Departures Board"),0);
 
-  bool isFSMounted = LittleFS.begin(true);    // Start the File System, format if necessary
-  strcpy(station.location,"");                // No default location
-  strcpy(weatherMsg,"");                      // No weather message
-  strcpy(nrToken,"");                         // No default National Rail token
-  loadApiKeys();                              // Load the API keys from the apiKeys.json
-  loadConfig();                               // Load the configuration settings from config.json
-  u8g2.setContrast(brightness);               // Set the panel brightness to the user saved level
-  progressBar(F("Initialising Departures Board"),15);
-  u8g2.drawStr(SCREEN_WIDTH-getStringWidth(crsCode),53,crsCode);  // Display the saved station code in the bottom right corner
-  u8g2.sendBuffer();
-
-  progressBar(F("Connecting to Wi-Fi"),30);
-  WiFi.mode(WIFI_MODE_NULL);        // Reset the WiFi
-  WiFi.setSleep(WIFI_PS_NONE);      // Turn off WiFi Powersaving
-  WiFi.hostname(hostname);          // Set the hostname ("Departures Board")
-  WiFi.mode(WIFI_STA);              // Enter WiFi station mode
-  WiFiManager wm;                   // Start WiFiManager
-  wm.setAPCallback(wmConfigModeCallback);     // Set the callback for config mode notification
-  wm.setWiFiAutoReconnect(true);              // Attempt to auto-reconnect WiFi
-  wm.setConnectTimeout(8);
-  wm.setConnectRetries(2);
-
-  bool result = wm.autoConnect("Departures Board");    // Attempt to connect to WiFi (or enter interactive configuration mode)
-  if (!result) {
-      // Failed to connect/configure
-      ESP.restart();
-  }
-
-  // Wait for WiFi connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(250);
-  }
-
-  // Get our IP address and store
-  updateMyUrl();
-
-  wifiConnected=true;
-  WiFi.setAutoReconnect(true);
-  u8g2.clearBuffer();                                             // Clear the display
-  drawStartupHeading();                                           // Draw the startup heading
-  u8g2.drawStr(SCREEN_WIDTH-getStringWidth(crsCode),53,crsCode);  // Display the saved station code in the bottom right corner
-  char ipBuff[17];
-  WiFi.localIP().toString().toCharArray(ipBuff,sizeof(ipBuff));   // Get the IP address of the ESP32
-  centreText(ipBuff,53);                                          // Display the IP address
-  progressBar(F("Wi-Fi Connected"),40);
-  u8g2.sendBuffer();                                              // Send to OLED panel
-
-  // Configure the local webserver paths
-  server.on(F("/"),handleRoot);
-  server.on(F("/erasewifi"),handleEraseWiFi);
-  server.on(F("/factoryreset"),handleFactoryReset);
-  server.on(F("/info"),handleInfo);
-  server.on(F("/formatffs"),handleFormatFFS);
-  server.on(F("/dir"),handleFileList);
-  server.onNotFound(handleNotFound);
-  server.on(F("/cat"),handleCat);
-  server.on(F("/del"),handleDelete);
-  server.on(F("/reboot"),handleReboot);
-  server.on(F("/stationpicker"),handleStationPicker);           // Used by the Web GUI to lookup station codes interactively
-  server.on(F("/firmware"),handleFirmwareInfo);                 // Used by the Web GUI to display the running firmware version
-  server.on(F("/savesettings"),HTTP_POST,handleSaveSettings);   // Used by the Web GUI to save updated configuration settings
-  server.on(F("/savekeys"),HTTP_POST,handleSaveKeys);           // Used by the Web GUI to verify/save API keys
-  server.on(F("/brightness"),handleBrightness);                 // Used by the Web GUI to interactively set the panel brightness
-  server.on(F("/ota"),handleOtaUpdate);                         // Used by the Web GUI to initiate a manual firmware/WebApp update
-
-  server.on("/update", HTTP_GET, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/html", updatePage);
-  });
-  /*handling uploading firmware file */
-  server.on("/update", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    sendResponse(200,(Update.hasError()) ? "FAIL" : "OK");
-    ESP.restart();
-  }, []() {
-    HTTPUpload& upload = server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
-        //Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      /* flashing firmware to ESP*/
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        //Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (Update.end(true)) { //true to set the size to the current progress
-      } else {
-        //Update.printError(Serial);
-      }
-    }
-  });
-
-  server.on(F("/upload"), HTTP_GET, []() {
-      server.send(200, "text/html", uploadPage);
-  });
-  server.on(F("/upload"), HTTP_POST, []() {
-  }, handleFileUpload);
-
-  server.begin();     // Start the local web server
-
-  // Check for Firmware/GUI updates?
-  if (firmwareUpdates) {
-    progressBar(F("Checking for firmware updates"),45);
-    if (ghUpdate.getLatestRelease()) {
-      if (checkForFirmwareUpdate()) {
-        // Only check for webapp updates if the firmware update did not fail.
-        checkForWebAppUpdate(false);
-      }
-    } else {
-      for (int i=10;i>=0;i--) {
-        showUpdateCompleteScreen("Firmware Update Check Failed","Unable to retrieve latest release information.",ghUpdate.getLastError().c_str(),i,false);
-        delay(1000);
-      }
-      log_e("FW Update failed: %s\n",ghUpdate.getLastError().c_str());
-      u8g2.clearDisplay();
-      drawStartupHeading();
-      u8g2.sendBuffer();
-    }
-  }
-
-  // First time configuration?
-  if (!crsCode[0] || !nrToken[0]) {
-    if (!nrToken[0]) showSetupKeysHelpScreen(); else showSetupCrsHelpScreen();
-    // First time setup mode will exit with a reboot, so just loop here forever servicing web requests
-    while (true) {
-      yield();
-      server.handleClient();
-    }
-  }
-
-  configTime(0,0, ntpServer);                 // Configure NTP server for setting the clock
-  setenv("TZ","GMT0BST,M3.5.0/1,M10.5.0",1);  // Configure UK TimeZone
-  tzset();                                    // Set the TimeZone
-
-  // Check the clock has been set successfully before continuing
-  int p=50;
-  int ntpAttempts=0;
-  bool ntpResult=true;
-  progressBar(F("Setting the system clock..."),50);
-  if(!getLocalTime(&timeinfo)) {              // attempt to set the clock from NTP
-    do {
-      delay(500);                             // If no NTP response, wait 500ms and retry
-      ntpResult = getLocalTime(&timeinfo);
-      ntpAttempts++;
-      p+=5;
-      progressBar(F("Setting the system clock..."),p);
-      if (p>80) p=45;
-    } while ((!ntpResult) && (ntpAttempts<10));
-  }
-  if (!ntpResult) {
-    // Some times NTP/UDP fails. A reboot usually fixes it.
-    progressBar(F("Failed to set the clock. Rebooting in 5 sec."),0);
-    delay(5000);
-    ESP.restart();
-  }
-
-  progressBar(F("Initialising National Rail interface"),60);
-  int res = raildata.init(wsdlHost, wsdlAPI, &raildataCallback);
-  if (res != UPD_SUCCESS) {
-    showWsdlFailureScreen();
-    while (true) { server.handleClient(); yield();}
-  }
-
-  progressBar(F("Initialising National Rail interface"),70);
-}
-
-
-void loop(void) {
-  isSleeping = isSnoozing();
-
-  if (isSleeping && millis()>timer) {       // If the "screensaver" is active, change the screen every 8 seconds
-    drawSleepingScreen();
-    timer=millis()+8000;
-  }
-
-  // WiFi Status icon
-  if (WiFi.status() != WL_CONNECTED && wifiConnected) {
-    wifiConnected=false;
-    u8g2.setFont(NatRailSmall9);
-    u8g2.drawStr(0,56,"\x7F");  // No Wifi Icon
-    u8g2.updateDisplayArea(0,7,1,1);
-  } else if (WiFi.status() == WL_CONNECTED && !wifiConnected) {
-    wifiConnected=true;
-    blankArea(0,57,5,7);
-    u8g2.updateDisplayArea(0,7,1,1);
-    updateMyUrl();  // in case our IP changed
-  }
-
-  // Force a manual reset if we've been disconnected for more than 10 secs
-  if (WiFi.status() != WL_CONNECTED && millis() > lastWiFiReconnect+10000) {
-    WiFi.disconnect();
-    delay(100);
-    WiFi.reconnect();
-    lastWiFiReconnect=millis();
-  }
-
+//
+// The main processing cycle for the National Rail Departures Board
+//
+void departureBoardLoop() {
   if ((millis() > nextDataUpdate) && (!isScrollingStops) && (!isScrollingService) && (lastUpdateResult != UPD_UNAUTHORISED) && (!isSleeping) && (wifiConnected)) {
     timer = millis() + 2000;
     if (getStationBoard()) {
@@ -1943,7 +2043,7 @@ void loop(void) {
 	  else if (lastUpdateResult == UPD_DATA_ERROR) {
 	    if (noDataLoaded) showNoDataScreen();
 	    else drawStationBoard();
-	} else if (noDataLoaded) showNoDataScreen();
+	  } else if (noDataLoaded) showNoDataScreen();
   } else if (weatherEnabled && (millis()>nextWeatherUpdate) && (!noDataLoaded) && (!isScrollingStops) && (!isScrollingService) && (!isSleeping) && (wifiConnected)) {
     updateCurrentWeather();
   }
@@ -2048,6 +2148,363 @@ void loop(void) {
     u8g2.updateDisplayArea(0,3,32,4);
     refreshTimer=millis();
   }
+}
+
+//
+// Processing loop for London Underground Arrivals board
+//
+void undergroundArrivalsLoop() {
+  char serviceData[8+MAXLINESIZE+MAXLOCATIONSIZE];
+  bool fullRefresh = false;
+
+  if (millis()>nextDataUpdate && !isScrollingService && !isScrollingPrimary && !isSleeping && wifiConnected) {
+    if (getUndergroundBoard()) {
+      if (lastUpdateResult == UPD_SUCCESS || lastUpdateResult == UPD_NO_CHANGE) drawUndergroundBoard(); // Something changed so redraw the board.
+    } else if (lastUpdateResult == UPD_UNAUTHORISED) showTokenErrorScreen();
+	  else if (lastUpdateResult == UPD_DATA_ERROR) {
+	    if (noDataLoaded) showNoDataScreen();
+	    else drawUndergroundBoard();
+	  } else if (noDataLoaded) showNoDataScreen();
+  }
+
+    // Scrolling the additional services
+  if (millis()>serviceTimer && !isScrollingService && !isSleeping && lastUpdateResult!=UPD_UNAUTHORISED && lastUpdateResult!=UPD_DATA_ERROR) {
+    if (station.numServices<=2 && messages.numMessages==0) {
+      // There are no additional services to scroll in so static attribution.
+      serviceTimer = millis() + 30000;
+    } else {
+      // Need to change to the next service or message if there is one
+      prevService = line3Service;
+      line3Service++;
+      if ((line3Service >= station.numServices && messages.numMessages==0) || (line3Service >= station.numServices+1 && messages.numMessages)) {
+        // Rollover
+        if (station.numServices>2) line3Service = 2; else line3Service = station.numServices;
+        prevMessage = currentMessage;
+        prevScrollStopsLength = scrollStopsLength;  // Save the length of the previous message
+      }
+      scrollServiceYpos=11;
+      scrollStopsXpos=0;
+      isScrollingService = true;
+      if (line3Service>=station.numServices) {
+        // Showing the messages
+        currentMessage++;
+        if (currentMessage>=messages.numMessages) currentMessage=0; // Rollover
+        scrollStopsLength = getStringWidth(line2[currentMessage]);
+      } else {
+        scrollStopsLength=SCREEN_WIDTH;
+      }
+    }
+  }
+
+  if (isScrollingService && millis()>serviceTimer && !isSleeping) {
+    blankArea(0,ULINE3,256,10);
+    if (scrollServiceYpos) {
+      // we're scrolling up the message initially
+      u8g2.setClipWindow(0,ULINE3,256,ULINE3+10);
+      // Was the previous display a service?
+      if (prevService<station.numServices) {
+        drawUndergroundService(prevService,scrollServiceYpos+ULINE3-13);
+      } else {
+        // if the previous message didn't scroll then we need to scroll it up off the screen
+        if (prevScrollStopsLength && prevScrollStopsLength<256) centreText(line2[prevMessage],scrollServiceYpos+ULINE3-13);
+      }
+      // Is this entry a service?
+      if (line3Service<station.numServices) {
+        drawUndergroundService(line3Service,scrollServiceYpos+ULINE3-1);
+      } else {
+        if (scrollStopsLength<256) centreText(line2[currentMessage],scrollServiceYpos+ULINE3-2); // Centre text if it fits
+        else u8g2.drawStr(0,scrollServiceYpos+ULINE3-2,line2[currentMessage]);
+      }
+      u8g2.setMaxClipWindow();
+      scrollServiceYpos--;
+      if (scrollServiceYpos==0) {
+        if (line3Service<station.numServices) {
+          serviceTimer=millis()+3500;
+          isScrollingService=false;
+        } else {
+          serviceTimer=millis()+500;
+        }
+      }
+    } else {
+      // we're scrolling left
+      if (scrollStopsLength<256) centreText(line2[currentMessage],ULINE3-1); // Centre text if it fits
+      else u8g2.drawStr(scrollStopsXpos,ULINE3-1,line2[currentMessage]);
+      if (scrollStopsLength < 256) {
+        // we don't need to scroll this message, it fits so just set a longer timer
+        serviceTimer=millis()+3000;
+        isScrollingService=false;
+      } else {
+        scrollStopsXpos--;
+        if (scrollStopsXpos < -scrollStopsLength) {
+          isScrollingService=false;
+          serviceTimer=millis()+500;  // pause before next message
+        }
+      }
+    }
+  }
+
+  if (isScrollingPrimary && !isSleeping) {
+    blankArea(0,ULINE1,256,ULINE3-ULINE1);
+    fullRefresh = true;
+    // we're scrolling the primary service(s) into view
+    u8g2.setClipWindow(0,ULINE1,256,ULINE1+10);
+    if (station.numServices) drawUndergroundService(0,scrollPrimaryYpos+ULINE1-1);
+    else centreText(F("There are no scheduled arrivals at this station."),scrollPrimaryYpos+ULINE1-1);
+    if (station.numServices>1) {
+      u8g2.setClipWindow(0,ULINE2,256,ULINE2+10);
+      drawUndergroundService(1,scrollPrimaryYpos+ULINE2-1);
+    }
+    u8g2.setMaxClipWindow();
+    scrollPrimaryYpos--;
+    if (scrollPrimaryYpos==0) {
+      isScrollingPrimary=false;
+    }
+  }
+
+  if (!isSleeping) {
+    // Check if the clock should be updated
+    if (millis()>nextClockUpdate) {
+      nextClockUpdate = millis()+500;
+      drawCurrentTimeUG(true);
+    }
+
+    long delayMs = 18 - (millis()-refreshTimer);
+    if (delayMs>0) delay(delayMs);
+    if (fullRefresh) u8g2.updateDisplayArea(0,1,32,6); else u8g2.updateDisplayArea(0,5,32,2);
+    refreshTimer=millis();
+  }
+}
+
+//
+// Setup code
+//
+void setup(void) {
+  // These are the default wsdl XML SOAP entry points. They can be overridden in the config.json file if necessary
+  strncpy(wsdlHost,"lite.realtime.nationalrail.co.uk",sizeof(wsdlHost));
+  strncpy(wsdlAPI,"/OpenLDBWS/wsdl.aspx?ver=2021-11-01",sizeof(wsdlAPI));
+  u8g2.begin();                       // Start the OLED panel
+  u8g2.setContrast(brightness);       // Initial brightness
+  u8g2.setDrawColor(1);               // Only a monochrome display, so set the colour to "on"
+  u8g2.setFontMode(1);                // Transparent fonts
+  u8g2.setFontRefHeightAll();         // Count entire font height
+  u8g2.setFontPosTop();               // Reference from top
+
+  drawStartupHeading();               // Draw the startup heading
+  u8g2.sendBuffer();                  // Send to OLED display
+  progressBar(F("Initialising Departures Board"),0);
+
+  bool isFSMounted = LittleFS.begin(true);    // Start the File System, format if necessary
+  strcpy(station.location,"");                // No default location
+  strcpy(weatherMsg,"");                      // No weather message
+  strcpy(nrToken,"");                         // No default National Rail token
+  loadApiKeys();                              // Load the API keys from the apiKeys.json
+  loadConfig();                               // Load the configuration settings from config.json
+  u8g2.setContrast(brightness);               // Set the panel brightness to the user saved level
+  progressBar(F("Initialising Departures Board"),15);
+  u8g2.sendBuffer();
+
+  progressBar(F("Connecting to Wi-Fi"),30);
+  WiFi.mode(WIFI_MODE_NULL);        // Reset the WiFi
+  WiFi.setSleep(WIFI_PS_NONE);      // Turn off WiFi Powersaving
+  WiFi.hostname(hostname);          // Set the hostname ("Departures Board")
+  WiFi.mode(WIFI_STA);              // Enter WiFi station mode
+  WiFiManager wm;                   // Start WiFiManager
+  wm.setAPCallback(wmConfigModeCallback);     // Set the callback for config mode notification
+  wm.setWiFiAutoReconnect(true);              // Attempt to auto-reconnect WiFi
+  wm.setConnectTimeout(8);
+  wm.setConnectRetries(2);
+
+  bool result = wm.autoConnect("Departures Board");    // Attempt to connect to WiFi (or enter interactive configuration mode)
+  if (!result) {
+      // Failed to connect/configure
+      ESP.restart();
+  }
+
+  // Wait for WiFi connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(250);
+  }
+
+  // Get our IP address and store
+  updateMyUrl();
+  if (MDNS.begin(hostname)) {
+    MDNS.addService("http","tcp",80);
+  }
+
+  wifiConnected=true;
+  WiFi.setAutoReconnect(true);
+  u8g2.clearBuffer();                                             // Clear the display
+  drawStartupHeading();                                           // Draw the startup heading
+  char ipBuff[17];
+  WiFi.localIP().toString().toCharArray(ipBuff,sizeof(ipBuff));   // Get the IP address of the ESP32
+  centreText(ipBuff,53);                                          // Display the IP address
+  progressBar(F("Wi-Fi Connected"),40);
+  u8g2.sendBuffer();                                              // Send to OLED panel
+
+  // Configure the local webserver paths
+  server.on(F("/"),handleRoot);
+  server.on(F("/erasewifi"),handleEraseWiFi);
+  server.on(F("/factoryreset"),handleFactoryReset);
+  server.on(F("/info"),handleInfo);
+  server.on(F("/formatffs"),handleFormatFFS);
+  server.on(F("/dir"),handleFileList);
+  server.onNotFound(handleNotFound);
+  server.on(F("/cat"),handleCat);
+  server.on(F("/del"),handleDelete);
+  server.on(F("/reboot"),handleReboot);
+  server.on(F("/stationpicker"),handleStationPicker);           // Used by the Web GUI to lookup station codes interactively
+  server.on(F("/firmware"),handleFirmwareInfo);                 // Used by the Web GUI to display the running firmware version
+  server.on(F("/savesettings"),HTTP_POST,handleSaveSettings);   // Used by the Web GUI to save updated configuration settings
+  server.on(F("/savekeys"),HTTP_POST,handleSaveKeys);           // Used by the Web GUI to verify/save API keys
+  server.on(F("/brightness"),handleBrightness);                 // Used by the Web GUI to interactively set the panel brightness
+  server.on(F("/ota"),handleOtaUpdate);                         // Used by the Web GUI to initiate a manual firmware/WebApp update
+
+  server.on("/update", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, contentTypeHtml, updatePage);
+  });
+  /*handling uploading firmware file */
+  server.on("/update", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    sendResponse(200,(Update.hasError()) ? "FAIL" : "OK");
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+        //Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      /* flashing firmware to ESP*/
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        //Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) { //true to set the size to the current progress
+      } else {
+        //Update.printError(Serial);
+      }
+    }
+  });
+
+  server.on(F("/upload"), HTTP_GET, []() {
+      server.send(200, contentTypeHtml, uploadPage);
+  });
+  server.on(F("/upload"), HTTP_POST, []() {
+  }, handleFileUpload);
+
+  server.on(F("/success"), HTTP_GET, []() {
+    server.send(200, contentTypeHtml, successPage);
+  });
+
+  server.begin();     // Start the local web server
+
+  // Check for Firmware/GUI updates?
+  if (firmwareUpdates) {
+    progressBar(F("Checking for firmware updates"),45);
+    if (ghUpdate.getLatestRelease()) {
+      if (checkForFirmwareUpdate()) {
+        // Only check for webapp updates if the firmware update did not fail.
+        checkForWebAppUpdate(false);
+      }
+    } else {
+      for (int i=10;i>=0;i--) {
+        showUpdateCompleteScreen("Firmware Update Check Failed","Unable to retrieve latest release information.",ghUpdate.getLastError().c_str(),i,false);
+        delay(1000);
+      }
+      log_e("FW Update failed: %s\n",ghUpdate.getLastError().c_str());
+      u8g2.clearDisplay();
+      drawStartupHeading();
+      u8g2.sendBuffer();
+    }
+  }
+
+  // First time configuration?
+  if (!crsCode[0] || !nrToken[0]) {
+    if (!nrToken[0]) showSetupKeysHelpScreen(); else showSetupCrsHelpScreen();
+    // First time setup mode will exit with a reboot, so just loop here forever servicing web requests
+    while (true) {
+      yield();
+      server.handleClient();
+    }
+  }
+
+  configTime(0,0, ntpServer);                 // Configure NTP server for setting the clock
+  setenv("TZ","GMT0BST,M3.5.0/1,M10.5.0",1);  // Configure UK TimeZone
+  tzset();                                    // Set the TimeZone
+
+  // Check the clock has been set successfully before continuing
+  int p=50;
+  int ntpAttempts=0;
+  bool ntpResult=true;
+  progressBar(F("Setting the system clock..."),50);
+  if(!getLocalTime(&timeinfo)) {              // attempt to set the clock from NTP
+    do {
+      delay(500);                             // If no NTP response, wait 500ms and retry
+      ntpResult = getLocalTime(&timeinfo);
+      ntpAttempts++;
+      p+=5;
+      progressBar(F("Setting the system clock..."),p);
+      if (p>80) p=45;
+    } while ((!ntpResult) && (ntpAttempts<10));
+  }
+  if (!ntpResult) {
+    // Sometimes NTP/UDP fails. A reboot usually fixes it.
+    progressBar(F("Failed to set the clock. Rebooting in 5 sec."),0);
+    delay(5000);
+    ESP.restart();
+  }
+
+  station.numServices=0;
+  if (tubeMode) {
+    tfldata = new TfLdataClient();
+    progressBar(F("Initialising TfL interface"),70);
+    startupProgressPercent=70;
+  } else {
+    progressBar(F("Initialising National Rail interface"),60);
+    raildata = new raildataXmlClient();
+    int res = raildata->init(wsdlHost, wsdlAPI, &raildataCallback);
+    if (res != UPD_SUCCESS) {
+      showWsdlFailureScreen();
+      while (true) { server.handleClient(); yield();}
+    }
+    progressBar(F("Initialising National Rail interface"),70);
+  }
+}
+
+
+void loop(void) {
+
+  isSleeping = isSnoozing();
+
+  if (isSleeping && millis()>timer) {       // If the "screensaver" is active, change the screen every 8 seconds
+    drawSleepingScreen();
+    timer=millis()+8000;
+  }
+
+  // WiFi Status icon
+  if (WiFi.status() != WL_CONNECTED && wifiConnected) {
+    wifiConnected=false;
+    u8g2.setFont(NatRailSmall9);
+    u8g2.drawStr(0,56,"\x7F");  // No Wifi Icon
+    u8g2.updateDisplayArea(0,7,1,1);
+  } else if (WiFi.status() == WL_CONNECTED && !wifiConnected) {
+    wifiConnected=true;
+    blankArea(0,57,5,7);
+    u8g2.updateDisplayArea(0,7,1,1);
+    updateMyUrl();  // in case our IP changed
+  }
+
+  // Force a manual reset if we've been disconnected for more than 10 secs
+  if (WiFi.status() != WL_CONNECTED && millis() > lastWiFiReconnect+10000) {
+    WiFi.disconnect();
+    delay(100);
+    WiFi.reconnect();
+    lastWiFiReconnect=millis();
+  }
+
+  if (tubeMode) undergroundArrivalsLoop();
+  else departureBoardLoop();
 
   server.handleClient();
 }

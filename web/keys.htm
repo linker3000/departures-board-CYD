@@ -8,7 +8,7 @@
     <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="apple-touch-icon" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.svg">
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <title>Departures Board</title>
 </head>
@@ -26,6 +26,11 @@
                 <label class="control-label" for="owmKey">OpenWeather Map API Key</label>
                 <input id="owmKey" type="text" placeholder="Optionally, enter your API key" class="form-control input-md">
                 <span class="help-block">Enter your openweathermap.org api key if you wish to display station weather information. You can register for a free api key <a href="https://home.openweathermap.org/users/sign_up" target="_blank">here</a>.</span>
+            </div>
+            <div class="form-group">
+                <label class="control-label" for="appKey">Transport for London API Key</label>
+                <input id="appKey" type="text" placeholder="Optionally, enter your TfL App key" class="form-control input-md">
+                <span class="help-block">Enter your Transport for London api key (app_key) if you wish to display London Underground station arrivals. You can register for a free api key <a href="https://api-portal.tfl.gov.uk/signup" target="_blank">here</a>.</span>
             </div>
             <div class="form-group" style="text-align: center;">
             <label class="control-label" for="save"></label>
@@ -56,6 +61,9 @@
                 if (data.owmToken) {
                     $('#owmKey').val(data.owmToken);
                 }
+                if (data.appKey) {
+                    $('#appKey').val(data.appKey);
+                }
                 // Validate after loading
                 validateNrKey();
             });
@@ -68,10 +76,12 @@
             $('#save').click(function () {
                 const nrToken = $('#nrKey').val();
                 const owmToken = $('#owmKey').val();
+                const appKey = $('#appKey').val();
 
                 const payload = {
                     nrToken: nrToken,
-                    owmToken: owmToken
+                    owmToken: owmToken,
+                    appKey: appKey
                 };
 
                 $.ajax({

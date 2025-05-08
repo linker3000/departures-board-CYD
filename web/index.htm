@@ -7,10 +7,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-3-typeahead/4.0.2/bootstrap3-typeahead.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
     <link rel="apple-touch-icon" href="favicon.png">
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
     <title>Departures Board</title>
 </head>
 <body>
@@ -18,7 +18,8 @@
     <form id="formsettings">
       <fieldset>
         <legend style="position: relative; text-align: center; min-height: 45px; padding-top:8px;">
-          Departures Board Setup
+          <div id="nrT" style="display:none">Departures Board Setup</div>
+          <div id="tflT" style="display:none">Arrivals Board Setup</div>
           <div class="dropdown" style="position: absolute; top: 5px; right: 0;">
             <button class="btn btn-default dropdown-toggle" type="button" id="menuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
               &#9776;
@@ -32,12 +33,17 @@
           </div>
         </legend>
 
-        <div class="form-group">
+        <div class="form-group" id="nrSearchBox" style="display:none">
           <label class="control-label" for="searchName">Station</label>
           <input id="searchName" type="text" placeholder="Type the station name" class="form-control input-md typeahead">
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="tflSearchBox" style="display:none">
+          <label class="control-label" for="searchNameTfL">Underground Station</label>
+          <input id="searchNameTfL" type="text" placeholder="Type the underground station name" class="form-control input-md typeahead">
+        </div>
+
+        <div class="form-group" id="nrCallingBox" style="display:none">
           <label class="control-label" for="callingStation">Only show services calling at</label>
           <div style="display: flex; gap: 10px;">
             <div style="flex: 1;">
@@ -58,13 +64,16 @@
         <div class="form-group">
           <label class="control-label">Options</label>
           <div class="checkbox">
+            <label><input type="checkbox" id="tubeMode"> London Underground Arrivals Board Mode</label>
+          </div>
+          <div class="checkbox">
             <label><input type="checkbox" id="showDate"> Show the date on screen</label>
           </div>
           <div class="checkbox">
-            <label><input type="checkbox" id="enableBuses"> Include Bus services</label>
+            <label><input type="checkbox" id="enableBuses"> Include Bus services (National Rail)</label>
           </div>
           <div class="checkbox">
-            <label><input type="checkbox" id="enableWeather"> Include current weather at station location</label>
+            <label><input type="checkbox" id="enableWeather"> Include current weather at station (National Rail)</label>
           </div>
           <div class="checkbox">
             <label><input type="checkbox" id="enableFirmware"> Enable automatic firmware updates at startup</label>
@@ -146,8 +155,11 @@
             <div style="flex: 1; text-align: left;">
               <span class="help-block" id="fwinfo" style="margin: 0;"></span>
             </div>
-            <div>
+            <div id="nrAtt" style="display:none">
               <a href="https://www.nationalrail.co.uk" target="_blank"><img src="/nrelogo.webp" alt="Logo" style="max-height: 40px;"></a>
+            </div>
+            <div id="tflAtt" style="display:none">
+              <a href="https://tfl.gov.uk/" target="_blank"><img src="/tfllogo.webp" alt="Logo" style="max-height: 40px;"></a>
             </div>
           </div>
         </div>
@@ -159,8 +171,13 @@
   <script>
     const appState = {
       stationSelected: false,
+      stationSelectedTfL: false,
       stationName: "",
       stationCRS: "",
+      tubeName: "",
+      tubeId: "",
+      tubeMode: false,
+      appKey: "",
       stationLatitude: 0,
       stationLongitude: 0,
       callingStationSelected: false,
@@ -173,8 +190,10 @@
     const elements = {
       form: document.getElementById("formsettings"),
       searchName: document.getElementById("searchName"),
+      searchNameTfL: document.getElementById("searchNameTfL"),
       callingStation: document.getElementById("callingStation"),
       brightness: document.getElementById("brightness"),
+      tubeMode: document.getElementById("tubeMode"),
       enableSleep: document.getElementById("enableSleep"),
       sleepStart: document.getElementById("sleepStart"),
       sleepEnd: document.getElementById("sleepEnd"),
@@ -204,12 +223,36 @@
       };
     };
 
+    const substringMatcherTfL = () => {
+      return (q, cb) => {
+        if (q.length > 2) {
+          $.ajax({
+            url: 'https://api.tfl.gov.uk/StopPoint/Search/' + encodeURIComponent(q) + '?modes=tube,dlr&maxResults=10&faresOnly=False&includeHubs=False&app_key=' + appState.appKey ,
+            method: 'GET',
+            success: function(data) {
+              const stations = data.matches.filter(s => s.kbState !== 0);
+              cb(stations);
+            },
+            error: function(xhr, status, error) {
+              console.error(`UG Station fetch failed: ${status} - ${error}`);
+              cb([]);
+            }
+          });
+        } else {
+          cb([]);
+        }
+      };
+    };
+
     $(elements.searchName).typeahead({
       name: 'stations',
       source: substringMatcher(),
       updater: function(item) {
         handleStationSelected(item);
         return item;
+      },
+      highlighter: function(item) {
+        return '<img src="/nr.webp" style="margin-right:6px">' + item;
       }
     });
 
@@ -219,6 +262,21 @@
       updater: function(item) {
         handleCallingStationSelected(item);
         return item;
+      },
+      highlighter: function(item) {
+        return '<img src="/nr.webp" style="margin-right:6px">' + item;
+      }
+    });
+
+    $(elements.searchNameTfL).typeahead({
+      name: 'stations',
+      source: substringMatcherTfL(),
+      updater: function(item) {
+        handleTfLStationSelected(item);
+        return item;
+      },
+      highlighter: function(item) {
+        return '<img src="/tube.webp" style="margin-right:6px">' + item;
       }
     });
 
@@ -232,14 +290,17 @@
     elements.searchName.addEventListener("blur", () => setTimeout(handleStationLostFocus, 500));
     elements.callingStation.addEventListener("focus", () => elements.callingStation.select());
     elements.callingStation.addEventListener("blur", () => setTimeout(handleCallingStationLostFocus, 500));
+    elements.searchNameTfL.addEventListener("focus", () => elements.searchNameTfL.select());
+    elements.searchNameTfL.addEventListener("blur", () => setTimeout(handleTfLStationLostFocus, 500));
     elements.enableSleep.addEventListener("change", toggleSleepSelectors);
     elements.brightness.addEventListener("change", handleBrightnessChange);
     elements.clearButton.addEventListener("click", handleClearFilter);
+    elements.tubeMode.addEventListener("click", toggleBoardMode);
 
     document.addEventListener("DOMContentLoaded", async () => {
       await fetchConfig();
       await fetchFirmware();
-      await checkWeatherToken();
+      await fetchApiKeys();
     });
 
     async function fetchConfig() {
@@ -268,15 +329,16 @@
       }
     }
 
-    async function checkWeatherToken() {
+    async function fetchApiKeys() {
       try {
         const response = await fetch('/apikeys.json');
         const data = await response.json();
         if (!data.owmToken) {
           $('#enableWeather').prop('disabled', true).prop('checked', false);
         }
+        appState.appKey = data.appKey || "";
       } catch (err) {
-        console.warn("Could not check weather token.");
+        console.warn("Could not load api keys.");
       }
     }
 
@@ -284,6 +346,23 @@
       const enabled = elements.enableSleep.checked;
       elements.sleepStart.disabled = !enabled;
       elements.sleepEnd.disabled = !enabled;
+    }
+
+    function toggleBoardMode() {
+      const enableTube = elements.tubeMode.checked;
+      appState.tubeMode = enableTube;
+      show("tflT",enableTube);
+      show("tflSearchBox",enableTube);
+      show("tflAtt",enableTube);
+      show ("nrT",!enableTube);
+      show("nrSearchBox",!enableTube);
+      show("nrCallingBox",!enableTube);
+      show("nrAtt",!enableTube);
+      if ((enableTube && appState.tubeName) || (!enableTube && appState.stationName)) {
+        elements.saveButton.removeAttribute("disabled");
+       } else {
+        elements.saveButton.setAttribute("disabled", true);
+       }
     }
 
     function loadSettings() {
@@ -296,10 +375,15 @@
       appState.callingStation = s.callingStation || "";
       appState.callingCrs = s.callingCrs || "";
 
+      appState.tubeName = s.tubeName || "";
+      appState.tubeId = s.tubeId || "";
+      appState.tubeMode = s.tube || false;
       elements.searchName.value = appState.stationName;
       elements.callingStation.value = appState.callingStation;
+      elements.searchNameTfL.value = appState.tubeName;
       elements.brightness.value = s.brightness || 50;
 
+      setCheckbox("tubeMode", s.tube);
       setCheckbox("enableSleep", s.sleep);
       setCheckbox("showDate", s.showDate);
       setCheckbox("enableBuses", s.showBus);
@@ -310,10 +394,7 @@
       $('#sleepEnd').val(s.sleepEnds);
 
       toggleSleepSelectors();
-
-      if (!appState.stationName) {
-        elements.saveButton.setAttribute("disabled", true);
-      }
+      toggleBoardMode();
     }
 
     function setCheckbox(id, value) {
@@ -340,6 +421,15 @@
       appState.callingCrs = item.crsCode;
     }
 
+    function handleTfLStationSelected(item) {
+      appState.stationSelectedTfL = true;
+      appState.tubeName = item.name;
+      appState.tubeId = item.id;
+      appState.stationLatitude = item.lat;
+      appState.stationLongitude = item.lon;
+      elements.saveButton.removeAttribute("disabled");
+    }
+
     function handleStationLostFocus() {
       if (!appState.stationSelected) {
         elements.searchName.value = appState.stationName;
@@ -353,6 +443,14 @@
         elements.callingStation.value = appState.callingStation;
       } else {
         appState.callingStationSelected = false;
+      }
+    }
+
+    function handleTfLStationLostFocus() {
+      if (!appState.stationSelectedTfL) {
+        elements.searchNameTfL.value = appState.tubeName;
+      } else {
+        appState.stationSelectedTfL = false;
       }
     }
 
@@ -377,6 +475,9 @@
       s.lon = appState.stationLongitude;
       s.callingStation = appState.callingStation;
       s.callingCrs = appState.callingCrs;
+      s.tubeId = appState.tubeId;
+      s.tubeName = appState.tubeName;
+      s.tube = appState.tubeMode;
       s.brightness = elements.brightness.value;
       s.sleep = isChecked("enableSleep");
       s.showDate = isChecked("showDate");
@@ -403,6 +504,11 @@
 
     function isChecked(id) {
       return document.getElementById(id).checked;
+    }
+
+    function show(id,showme) {
+      if (showme) document.getElementById(id).style.display = "block";
+      else document.getElementById(id).style.display = "none";
     }
 
     // Menu handlers
