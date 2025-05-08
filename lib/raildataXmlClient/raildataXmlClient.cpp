@@ -454,6 +454,10 @@ void raildataXmlClient::sanitiseData() {
     else i++;
   }
 
+  // Issue #5 - Ampersands in Station Location
+  removeHtmlTags(xStation.location);
+  replaceWord(xStation.location,"&amp;","&");
+
   for (int i=0;i<xStation.numServices;i++) {
     // first change any &lt; &gt;
     removeHtmlTags(xStation.service[i].destination);
