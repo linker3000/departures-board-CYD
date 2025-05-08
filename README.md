@@ -1,15 +1,17 @@
 # departures-board [![License Badge](https://img.shields.io/badge/BY--NC--SA%204.0%20License-grey?style=flat&logo=creativecommons&logoColor=white)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API. This implementation uses a 3.12" OLED display panel with SSD1322 display controller onboard. STL files are also provided for 3D printing the custom desktop case.
+This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API and, new in v1.2, replicating London Underground Arrivals boards using data provided by TfL . This implementation uses a 3.12" OLED display panel with SSD1322 display controller onboard. STL files are also provided for 3D printing the custom desktop case.
 
 ## Features
 * All processing is done onboard by the ESP32 processor
-* Smooth animation matching the real departures boards
+* Smooth animation matching the real departures and arrivals boards
 * Displays up to the next 9 departures with platform, calling stations and expected departure time
-* Optionally only show services calling at a selected station (**new in v1.1**)
+* Optionally only show services calling at a selected station
 * Network Rail service messages
 * Train information (operator, class, number of coaches etc.)
-* Fully-featured Web UI - choose any station on the UK network
+* Displays up to the next 9 arrivals with time to station (London Underground mode)
+* TfL station and network service messages (London Underground mode)
+* Fully-featured Web UI - choose any station on the UK network / London Tube & DLR network
 * Automatic firmware updates (optional)
 * Displays the weather at the selected location (optional)
 * STL files provided for custom 3D printed case (**updated: now USB-C compatible**)
@@ -26,9 +28,10 @@ This short video demonstrates the Departures Board in action...
 3. A 3D printed case using the [STL](https://github.com/gadec-uk/departures-board/tree/main/stl) files provided. If you don't have a 3D printer, there are several services you can use to get one printed.
 4. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
 5. Optionally, an OpenWeather Map API token to display weather conditions at the selected station (these are also free, sign-up for a free developer account [here](https://home.openweathermap.org/users/sign_up)).
-6. Some intermediate soldering skills.
+6. Optionally, a TfL Open Data API token to display the London Underground/DLR Arrivals Board. These are free, sign-up for a free developer account [here](https://api-portal.tfl.gov.uk/signup)
+7. Some intermediate soldering skills.
 
-<img src="https://github.com/user-attachments/assets/bf9ea2c5-0317-4f73-8f83-b32a91f02cfc" align="center">
+<img src="https://github.com/user-attachments/assets/5ae96896-62cc-4880-a3a8-79ac505e7605" align="center">
 
 ### Preparing the OLED display for 4-Wire SPI Mode
 
@@ -78,21 +81,23 @@ Subsequent updates can be carried out automatically over-the-air or you can manu
 WiFiManager is used to setup the initial WiFi connection on first boot. The ESP32 will broadcast a temporary WiFi network named "Departures Board", connect to the network and follow the on-screen instuctions. You can also watch a video walkthrough of the entire process below.
 [![Departures Board Setup Video](https://github.com/user-attachments/assets/176f0489-d846-42de-913f-eb838d9ab941)](https://youtu.be/bMyI56zwHyc)
 
-Once the ESP32 has established an Internet connection, the Web GUI files will be downloaded and installed from the latest release on GitHub. The next step is to enter your National Rail API token (and optionally, your OpenWeather Map API token). Finally, select a station location. Start typing the location name and valid choices will be displayed as you type.
+Once the ESP32 has established an Internet connection, the Web GUI files will be downloaded and installed from the latest release on GitHub. The next step is to enter your National Rail API token (and optionally, your OpenWeather Map and Transport for London API tokens). Finally, select a station location. Start typing the location name and valid choices will be displayed as you type.
 
 ### Web GUI
 
 At start-up, the ESP32's IP address is displayed. To change the station or to configure other miscellaneous settings, open the web page at that address. The settings available are:
-- **Station** - start typing a few characters of a station name and select from the drop-down station picker displayed.
-- **Only show services calling at** - filter services based on *calling at* location (if you want to see the next trains *to* a particular station).
+- **Station** - start typing a few characters of a station name and select from the drop-down station picker displayed (National Rail mode).
+- **Only show services calling at** - filter services based on *calling at* location (National Rail mode - if you want to see the next trains *to* a particular station).
+- **Underground Station** - start typing a few characters of an Underground or DLR station name and select from the drop-down station picker displayed (London Underground mode).
 - **Brightness** - adjusts the brightness of the OLED screen.
+- **London Underground Arrivals Board Mode** - switch between National Rail Departures Board and London Underground Arrivals Board modes.
 - **Show the date on screen** - displays the date in the upper-right corner (useful if you're also using this as a desk clock!)
 - **Include Bus services** - optionally include bus replacement services (shown with a small bus icon in place of platform number).
 - **Include current weather at station location** - this option requires a valid OpenWeather Map API key (see above).
 - **Enable automatic firmware updates at startup** - automatically checks for AND installs the latest firmware/Web GUI from this repository.
 - **Enable overnight sleep mode (screensaver)** - if you're running the board 24/7, you can help prevent screen burn-in by enabling this option overnight.
 
-A drop-down menu (**new in v1.1**) adds the following options:
+A drop-down menu (top-right) adds the following options:
 - **Check for Updates** - manually checks for and installs any updates to the firmware/Web GUI.
 - **Edit API Keys** - view/edit your National Rail / OpenWeather Map API keys.
 - **Clear WiFi Settings** - deletes the stored WiFi credentials and restarts in WiFiManager mode (useful to change WiFi network).
