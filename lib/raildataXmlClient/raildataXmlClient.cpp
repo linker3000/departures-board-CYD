@@ -12,6 +12,7 @@
 #include <raildataXmlClient.h>
 #include <xmlListener.h>
 #include <WiFiClientSecure.h>
+#include <stationData.h>
 
 raildataXmlClient::raildataXmlClient() {
     firstDataLoad=true;
@@ -187,14 +188,15 @@ void raildataXmlClient::fixFullStop(char *input) {
 //
 // Updates the Departure Board data from the SOAP API
 //
-int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode) {
+int raildataXmlClient::updateDepartures(rdStation *station, stnMessages *messages, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode) {
 
     unsigned long perfTimer=millis();
-    lastErrorMessage = F("None");
+    bool bChunked = false;
+    lastErrorMessage = "";
 
     // Reset the counters
     xStation.numServices=0;
-    xStation.numMessages=0;
+    xMessages.numMessages=0;
     xStation.platformAvailable=false;
     addedStopLocation = false;
     strcpy(xStation.location,"");
@@ -215,7 +217,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
       xStation.service[i].isCancelled=false;
       xStation.service[i].isDelayed=false;
     }
-    for (int i=0;i<MAXBOARDMESSAGES;i++) strcpy(xStation.nrccMessages[i],"");
+    for (int i=0;i<MAXBOARDMESSAGES;i++) strcpy(xMessages.messages[i],"");
     id=-1;
     coaches=0;
 
@@ -277,7 +279,7 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
                     return UPD_HTTP_ERROR;
                 }
             }
-        }
+        } else if (line.startsWith(F("Transfer-Encoding:")) && line.indexOf(F("chunked")) >= 0) bChunked=true;
         if (line == F("\r")) {
             // Headers received
             break;
@@ -306,7 +308,6 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
     char c;
     dataSendTimeout = millis() + 12000UL;
     perfTimer=millis(); // Reset the data load timer
-
     while((httpsClient.available() || httpsClient.connected()) && (millis() < dataSendTimeout)) {
         while (httpsClient.available()) {
             c = httpsClient.read();
@@ -316,26 +317,26 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
                 Xcb(2,xStation.numServices);    // Callback progress
                 ticker = millis()+800;
             }
-            yield();
+//            yield();
         }
         if (millis()>ticker) {
-            Xcb(2,id);      // Callback with progress every 500ms
+            Xcb(2,id);      // Callback with progress
             ticker = millis()+800;
         }
-        yield();
+        delay(50);
     }
 
     httpsClient.stop();
-
+    if (bChunked) lastErrorMessage = "WARNING: Chunked response! ";
     if (millis() >= dataSendTimeout) {
-        lastErrorMessage = F("Timed out during data receive operation - ");
+        lastErrorMessage += F("Timed out during data receive operation - ");
         lastErrorMessage += String(dataReceived) + F(" bytes received");
         return UPD_TIMEOUT;
     }
 
     if (!xStation.location[0]) {
         // We didn't get a location back so probably failed
-        lastErrorMessage = F("Data incomplete - no location in response");
+        lastErrorMessage += F("Data incomplete - no location in response");
         return UPD_DATA_ERROR;
     }
     if (filter && !keepRoute && xStation.numServices) xStation.numServices--;   // Last route added needs filtering out
@@ -363,17 +364,17 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
     bool noUpdate = true;
     if (!firstDataLoad) {
         // Check for any changes
-        if (station->numMessages != xStation.numMessages || station->numServices != xStation.numServices || station->platformAvailable != xStation.platformAvailable || strcmp(station->location,xStation.location)) noUpdate=false;
+        if (messages->numMessages != xMessages.numMessages || station->numServices != xStation.numServices || station->platformAvailable != xStation.platformAvailable || strcmp(station->location,xStation.location)) noUpdate=false;
         else {
-            for (int i=0;i<xStation.numMessages;i++) {
-                if (strcmp(station->nrccMessages[i],xStation.nrccMessages[i])) {
+            for (int i=0;i<xMessages.numMessages;i++) {
+                if (strcmp(messages->messages[i],xMessages.messages[i])) {
                     noUpdate=false;
                     break;
                 }
             }
             if (noUpdate) {
                 for (int i=0;i<xStation.numServices;i++) {
-                    if (strcmp(station->service[i].sTime, xStation.service[i].sTime) || strcmp(station->service[i].destination, xStation.service[i].destination) || strcmp(station->service[i].via, xStation.service[i].via) || strcmp(station->service[i].origin, xStation.service[i].origin) || strcmp(station->service[i].etd, xStation.service[i].etd) || strcmp(station->service[i].platform, xStation.service[i].platform) || strcmp(station->service[i].serviceMessage, xStation.service[i].serviceMessage)) {
+                    if (strcmp(station->service[i].sTime, xStation.service[i].sTime) || strcmp(station->service[i].destination, xStation.service[i].destination) || strcmp(station->service[i].via, xStation.service[i].via) || strcmp(station->service[i].etd, xStation.service[i].etd) || strcmp(station->service[i].platform, xStation.service[i].platform)) {
                         noUpdate=false;
                         break;
                     }
@@ -391,16 +392,15 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
 
     if (!noUpdate) {
         // copy everything back to the caller's structure
-        station->numMessages = xStation.numMessages;
+        messages->numMessages = xMessages.numMessages;
         station->numServices = xStation.numServices;
         strcpy(station->location,xStation.location);
         station->platformAvailable = xStation.platformAvailable;
-        for (int i=0;i<xStation.numMessages;i++) strcpy(station->nrccMessages[i],xStation.nrccMessages[i]);
+        for (int i=0;i<xMessages.numMessages;i++) strcpy(messages->messages[i],xMessages.messages[i]);
         for (int i=0;i<xStation.numServices;i++) {
             strcpy(station->service[i].sTime, xStation.service[i].sTime);
             strcpy(station->service[i].destination, xStation.service[i].destination);
             strcpy(station->service[i].via, xStation.service[i].via);
-            strcpy(station->service[i].origin, xStation.service[i].origin);
             strcpy(station->service[i].etd, xStation.service[i].etd);
             strcpy(station->service[i].platform, xStation.service[i].platform);
             station->service[i].isCancelled = xStation.service[i].isCancelled;
@@ -408,19 +408,21 @@ int raildataXmlClient::updateDepartures(rdStation *station, const char *crsCode,
             station->service[i].trainLength = xStation.service[i].trainLength;
             station->service[i].classesAvailable = xStation.service[i].classesAvailable;
             strcpy(station->service[i].opco, xStation.service[i].opco);
-            //strcpy(station->service[i].calling, xStation.service[i].calling);
-            strcpy(station->service[i].serviceMessage, xStation.service[i].serviceMessage);
             station->service[i].serviceType = xStation.service[i].serviceType;
         }
-        if (xStation.numServices) strcpy(station->calling,xStation.service[0].calling);
+        if (xStation.numServices) {
+            strcpy(station->calling,xStation.service[0].calling);
+            strcpy(station->origin,xStation.service[0].origin);
+            strcpy(station->serviceMessage,xStation.service[0].serviceMessage);
+        }
     }
 
     Xcb(3,xStation.numServices);
     if (noUpdate) {
-        lastErrorMessage = "Success (No Changes) - data [" + String(dataReceived) + F("] load took ") + String(millis()-perfTimer) + F("ms");
+        lastErrorMessage += "Success (No Changes) - data [" + String(dataReceived) + F("] load took ") + String(millis()-perfTimer) + F("ms");
         return UPD_NO_CHANGE;
     } else {
-        lastErrorMessage = "Success - data [" + String(dataReceived) + F("] took ") + String(millis()-perfTimer) + F("ms");
+        lastErrorMessage += "Success - data [" + String(dataReceived) + F("] took ") + String(millis()-perfTimer) + F("ms");
         return UPD_SUCCESS;
     }
 }
@@ -466,31 +468,31 @@ void raildataXmlClient::sanitiseData() {
     fixFullStop(xStation.service[i].serviceMessage);
   }
 
-  for (int i=0;i<xStation.numMessages;i++) {
+  for (int i=0;i<xMessages.numMessages;i++) {
     // Remove all non printing characters from messages...
     int j = 0; // Index for the modified array
-    for (int x=0; xStation.nrccMessages[i][x] != '\0'; ++x) {
-        if (isprint(xStation.nrccMessages[i][x])) {
-            xStation.nrccMessages[i][j] = xStation.nrccMessages[i][x];
+    for (int x=0; xMessages.messages[i][x] != '\0'; ++x) {
+        if (isprint(xMessages.messages[i][x])) {
+            xMessages.messages[i][j] = xMessages.messages[i][x];
             ++j;
         }
     }
-    xStation.nrccMessages[i][j] = '\0'; // Null-terminate the modified array
-    replaceWord(xStation.nrccMessages[i],"&lt;","<");
-    replaceWord(xStation.nrccMessages[i],"&gt;",">");
-    replaceWord(xStation.nrccMessages[i],"<p>","");
-    replaceWord(xStation.nrccMessages[i],"</p>","");
-    replaceWord(xStation.nrccMessages[i],"<br>"," ");
+    xMessages.messages[i][j] = '\0'; // Null-terminate the modified array
+    replaceWord(xMessages.messages[i],"&lt;","<");
+    replaceWord(xMessages.messages[i],"&gt;",">");
+    replaceWord(xMessages.messages[i],"<p>","");
+    replaceWord(xMessages.messages[i],"</p>","");
+    replaceWord(xMessages.messages[i],"<br>"," ");
 
-    removeHtmlTags(xStation.nrccMessages[i]);
-    replaceWord(xStation.nrccMessages[i],"&amp;","&");
-    replaceWord(xStation.nrccMessages[i],"&quot;","\"");
+    removeHtmlTags(xMessages.messages[i]);
+    replaceWord(xMessages.messages[i],"&amp;","&");
+    replaceWord(xMessages.messages[i],"&quot;","\"");
     // Remove unwanted text at the end of service messages...
-    pruneFromPhrase(xStation.nrccMessages[i]," More details ");
-    pruneFromPhrase(xStation.nrccMessages[i]," Latest information ");
-    pruneFromPhrase(xStation.nrccMessages[i]," Further information ");
+    pruneFromPhrase(xMessages.messages[i]," More details ");
+    pruneFromPhrase(xMessages.messages[i]," Latest information ");
+    pruneFromPhrase(xMessages.messages[i]," Further information ");
 
-    fixFullStop(xStation.nrccMessages[i]);
+    fixFullStop(xMessages.messages[i]);
   }
 }
 
@@ -630,10 +632,10 @@ void raildataXmlClient::value(const char *value)
         if (strcmp(value,"true")==0) xStation.platformAvailable = true;
         return;
     } else if (tagPath.endsWith(F("nrccMessages/lt:message"))) {    // tagLevel 7
-        if (xStation.numMessages < MAXBOARDMESSAGES) {
-            xStation.numMessages++;
-            strncpy(xStation.nrccMessages[xStation.numMessages-1],value,sizeof(xStation.nrccMessages[0])-1);
-            xStation.nrccMessages[xStation.numMessages-1][sizeof(xStation.nrccMessages[0])-1] = '\0';
+        if (xMessages.numMessages < MAXBOARDMESSAGES) {
+            xMessages.numMessages++;
+            strncpy(xMessages.messages[xMessages.numMessages-1],value,sizeof(xMessages.messages[0])-1);
+            xMessages.messages[xMessages.numMessages-1][sizeof(xMessages.messages[0])-1] = '\0';
         }
         return;
     }

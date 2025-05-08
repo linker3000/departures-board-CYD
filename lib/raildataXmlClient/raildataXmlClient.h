@@ -12,55 +12,13 @@
 #pragma once
 #include <xmlListener.h>
 #include <xmlStreamingParser.h>
+#include <stationData.h>
 
 typedef void (*rdCallback) (int state, int id);
-
-#define MAXBOARDSERVICES 9
-#define MAXBOARDMESSAGES 4
-#define MAXMESSAGESIZE 400
-#define MAXLOCATIONSIZE 45
-
-#define OTHER 0
-#define TRAIN 1
-#define BUS 2
-
-#define UPD_SUCCESS 0
-#define UPD_INCOMPLETE 1
-#define UPD_UNAUTHORISED 2
-#define UPD_HTTP_ERROR 3
-#define UPD_TIMEOUT 4
-#define UPD_NO_RESPONSE 5
-#define UPD_DATA_ERROR 6
-#define UPD_NO_CHANGE 7
 
 #define MAXHOSTSIZE 48
 #define MAXAPIURLSIZE 48
 
-struct rdService {
-  char sTime[6];
-  char destination[MAXLOCATIONSIZE];
-  char via[MAXLOCATIONSIZE];
-  char origin[MAXLOCATIONSIZE];
-  char etd[11];
-  char platform[4];
-  bool isCancelled;
-  bool isDelayed;
-  int trainLength;
-  byte classesAvailable;
-  char opco[50];
-  char serviceMessage[MAXMESSAGESIZE];
-  int serviceType;
-};
-
-struct rdStation {
-  char location[MAXLOCATIONSIZE];
-  bool platformAvailable;
-  int numServices;
-  int numMessages;
-  char calling[MAXMESSAGESIZE];   // Only store the calling stops for the first service returned
-  rdService service[MAXBOARDSERVICES];
-  char nrccMessages[MAXBOARDMESSAGES][MAXMESSAGESIZE];
-};
 
 class raildataXmlClient: public xmlListener {
 
@@ -82,14 +40,12 @@ class raildataXmlClient: public xmlListener {
           char serviceMessage[MAXMESSAGESIZE];
           int serviceType;
         };
-        
+
         struct rdiStation {
           char location[MAXLOCATIONSIZE];
           bool platformAvailable;
           int numServices;
-          int numMessages;
           rdiService service[MAXBOARDSERVICES];
-          char nrccMessages[MAXBOARDMESSAGES][MAXMESSAGESIZE];
         };
 
         String grandParentTagName = "";
@@ -104,6 +60,7 @@ class raildataXmlClient: public xmlListener {
 
         String currentPath = "";
         rdiStation xStation;
+        stnMessages xMessages;
 
         bool addedStopLocation = false;
         int id=0;
@@ -136,6 +93,6 @@ class raildataXmlClient: public xmlListener {
     public:
         raildataXmlClient();
         int init(const char *wsdlHost, const char *wsdlAPI, rdCallback RDcb);
-        int updateDepartures(rdStation *station, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode);
+        int updateDepartures(rdStation *station, stnMessages *messages, const char *crsCode, const char *customToken, int numRows, bool includeBusServices, const char *callingCrsCode);
         String getLastError();
 };

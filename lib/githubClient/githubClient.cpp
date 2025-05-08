@@ -1,12 +1,12 @@
 /*
  * Departures Board (c) 2025 Gadec Software
- * 
+ *
  * GitHub Client Library - enables checking for latest release and downloading assets to file system
- * 
+ *
  * https://github.com/gadec-uk/departures-board
- * 
+ *
  * This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
- * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/ 
+ * To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/
  */
 
 #include <githubClient.h>
@@ -38,7 +38,7 @@ bool github::getLatestRelease() {
     if(retryCounter>=30) {
         lastErrorMsg += F("Connection timeout");
         return false;
-    }    
+    }
 
     String request = "GET "+ String(apiGetLatestRelease) + F(" HTTP/1.0\r\nHost: ") + String(apiHost) + F("\r\nuser-agent: esp32/1.0\r\nX-GitHub-Api-Version: 2022-11-28\r\nAccept: application/vnd.github+json\r\n");
     if (accessToken.length()) request += "Authorization: Bearer " + String(accessToken) + F("\r\n");
@@ -88,6 +88,7 @@ bool github::getLatestRelease() {
             if (c == '{' || c == '[') isBody = true;
             if (isBody) parser.parse(c);
         }
+        delay(50);
     }
     httpsClient.stop();
     if (millis() >= dataSendTimeout) {
@@ -101,7 +102,7 @@ bool github::getLatestRelease() {
 }
 
 bool github::downloadAssetToLittleFS(String url, String filename) {
-    
+
     HTTPClient http;
     WiFiClientSecure client;
     bool result = true;
@@ -218,7 +219,7 @@ void github::value(String value) {
     else if ((currentKey == "name") && (currentArray=="")) releaseDescription = value;
     else if ((currentKey == "url") && (currentArray=="assets") && (currentObject!="uploader")) assetURL = value;
     else if ((currentKey == "name") && (currentArray=="assets") && (currentObject!="uploader")) assetName = value;
-    
+
     if (assetURL.length() && assetName.length() && releaseAssets<MAX_RELEASE_ASSETS) {
         // Save the full asset url to the list
         releaseAssetURL[releaseAssets] = assetURL;
