@@ -20,7 +20,9 @@
 
 // Release version number
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 3
+#define VERSION_MINOR 4
+#define WEBAPPVER_MAJOR 1
+#define WEBAPPVER_MINOR 2
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -38,7 +40,9 @@
 #include <raildataXmlClient.h>
 #include <TfLdataClient.h>
 #include <githubClient.h>
-#include <webgraphics.h>
+#include <webgui/webgraphics.h>
+#include <webgui/index.h>
+#include <webgui/keys.h>
 
 #include <time.h>
 
@@ -279,8 +283,6 @@ bool firmwareUpdates = true;        // Check for and install firmware updates au
 byte sleepStarts = 0;               // Hour at which the overnight sleep (screensaver) begins
 byte sleepEnds = 6;                 // Hour at which the overnight sleep (screensaver) ends
 int brightness = 50;                // Initial brightness level of the OLED screen
-int waCurrentMajor = 0;             // Holds the major version number of the webapp code
-int waCurrentMinor = 0;             // Holds the minor version number of the webapp code
 unsigned long lastWiFiReconnect=0;  // Last WiFi reconnection time (millis)
 bool firstLoad = true;              // Are we loading for the first time (no station config)?
 int prevProgressBarPosition=0;      // Used for progress bar smooth animation
@@ -665,16 +667,6 @@ void showFirmwareUpdateProgress(int percent) {
   u8g2.sendBuffer();
 }
 
-void showWebappUpdateProgress(int percent) {
-  u8g2.clearBuffer();
-  u8g2.setFont(NatRailTall12);
-  centreText(F("Web GUI Update in Progress"),-1);
-  u8g2.setFont(NatRailSmall9);
-  progressBar(F("Updating Files"),percent);
-  centreText(F("* DO NOT REMOVE THE POWER DURING THE UPDATE *"),54);
-  u8g2.sendBuffer();
-}
-
 void showUpdateCompleteScreen(const char *title, const char *msg1, const char *msg2, int secs, bool showReboot) {
   char countdown[60];
   u8g2.clearBuffer();
@@ -836,16 +828,6 @@ void loadConfig() {
     saveFile("/config.json",defaultConfig);
     strcpy(crsCode,"");
   }
-
-  // Load the webapp version if possible
-  if (LittleFS.exists(F("/webapp.ver"))) {
-    File f = LittleFS.open(F("/webapp.ver"),"r");
-    if (f) {
-      waCurrentMajor = f.readStringUntil('\n').toInt();
-      waCurrentMinor = f.readStringUntil('\n').toInt();
-      f.close();
-    }
-  }
 }
 
 // WiFiManager callback, entered config mode
@@ -865,16 +847,6 @@ bool isFirmwareUpdateAvailable() {
   return true;
 }
 
-bool isWebAppUpdateAvailable() {
-  String waAvailableRelease = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf("-")+2);
-  int releaseMajor = waAvailableRelease.substring(0,waAvailableRelease.indexOf(".")).toInt();
-  int releaseMinor = waAvailableRelease.substring(waAvailableRelease.indexOf(".")+1).toInt();
-
-  if (waCurrentMajor > releaseMajor) return false;
-  if ((waCurrentMajor == releaseMajor) && (waCurrentMinor >= releaseMinor)) return false;
-  return true;
-}
-
 // Callback function for displaying firmware update progress
 void update_progress(int cur, int total) {
   int percent = ((cur * 100)/total);
@@ -886,7 +858,6 @@ bool checkForFirmwareUpdate() {
   bool result = true;
 
   if (!isFirmwareUpdateAvailable()) return result;
-  log_i("Firmware update available %s\n",ghUpdate.releaseId.c_str());
 
   // Find the firmware binary in the release assets
   String updatePath="";
@@ -897,7 +868,7 @@ bool checkForFirmwareUpdate() {
     }
   }
   if (updatePath.length()==0) {
-    log_e("No firmware binary in release assets\n");
+    //  No firmware binary in release assets
     return result;
   }
 
@@ -950,62 +921,6 @@ bool checkForFirmwareUpdate() {
   drawStartupHeading();
   u8g2.sendBuffer();
   return result;
-}
-
-// Attempts to update the Web GUI files if newer versions are available
-bool checkForWebAppUpdate(bool manual) {
-  File f;
-  bool wauResult = true;
-
-  if (!isWebAppUpdateAvailable()) return wauResult;
-  String waAvailableRelease = ghUpdate.releaseId.substring(ghUpdate.releaseId.indexOf("-")+2);
-  int releaseMajor = waAvailableRelease.substring(0,waAvailableRelease.indexOf(".")).toInt();
-  int releaseMinor = waAvailableRelease.substring(waAvailableRelease.indexOf(".")+1).toInt();
-
-  log_i("WebApp update available %s\n",ghUpdate.releaseId.c_str());
-  int savedProgressPercent = prevProgressBarPosition;
-  prevProgressBarPosition=0;
-  showWebappUpdateProgress(0);
-  int fileNo=0;
-  for (int i=0;i<ghUpdate.releaseAssets;i++) {
-    // Skip over the .bin firmware files
-    if (!ghUpdate.releaseAssetName[i].endsWith(".bin")) {
-      if (!ghUpdate.downloadAssetToLittleFS(ghUpdate.releaseAssetURL[i],"/"+ghUpdate.releaseAssetName[i])) {
-        wauResult = false;
-        break;
-      }
-      fileNo++;
-      int percent = (fileNo*100)/(ghUpdate.releaseAssets-4);  // There are always 4 .bin files in release assets. Everything else is assumed to be Web GUI
-      showWebappUpdateProgress(percent);
-    }
-  }
-  if (wauResult) {
-    // All the files have been updated, so update the webapp version
-    waCurrentMajor = releaseMajor;
-    waCurrentMinor = releaseMinor;
-    f = LittleFS.open(F("/webapp.ver"),"w");
-    if (f) {
-      f.println(releaseMajor);
-      f.println(releaseMinor);
-      f.close();
-    }
-    log_i("WebApp Updated OK\n");
-  } else {
-    char msg[60];
-    sprintf(msg,"The update failed with error %d.",httpUpdate.getLastError());
-    for (int i=15;i>=0;i--) {
-      showUpdateCompleteScreen("Web GUI Update","The update did not complete successfully.",ghUpdate.getLastError().c_str(),i,false);
-      delay(1000);
-    }
-  }
-
-  if (!manual) {
-    u8g2.clearDisplay();
-    drawStartupHeading();
-    u8g2.sendBuffer();
-  }
-  prevProgressBarPosition = savedProgressPercent;
-  return wauResult;
 }
 
 /*
@@ -1759,15 +1674,16 @@ void handleFileUpload() {
 
 // Fallback function for browser requests
 void handleNotFound() {
-    if ((LittleFS.exists(server.uri())) && (server.method() == HTTP_GET)) {
-      handleStreamFile(server.uri());
-    } else if (server.uri() == F("/nrelogo.webp")) handleStreamFlashFile(server.uri(), nrelogo, sizeof(nrelogo));
-    else if (server.uri() == F("/tfllogo.webp")) handleStreamFlashFile(server.uri(), tfllogo, sizeof(tfllogo));
-    else if (server.uri() == F("/tube.webp")) handleStreamFlashFile(server.uri(), tubeicon, sizeof(tubeicon));
-    else if (server.uri() == F("/nr.webp")) handleStreamFlashFile(server.uri(), nricon, sizeof(nricon));
-    else if (server.uri() == F("/favicon.svg")) handleStreamFlashFile(server.uri(), favicon, sizeof(favicon));
-    else if (server.uri() == F("/favicon.png")) handleStreamFlashFile(server.uri(), faviconpng, sizeof(faviconpng));
-    else sendResponse(404,F("Not Found"));
+  if (server.uri() == F("/keys.htm")) handleStreamFlashFile(server.uri(), keyshtm, sizeof(keyshtm));
+  else if (server.uri() == F("/index.htm")) handleStreamFlashFile(server.uri(), indexhtm, sizeof(indexhtm));
+  else if ((LittleFS.exists(server.uri())) && (server.method() == HTTP_GET)) handleStreamFile(server.uri());
+  else if (server.uri() == F("/nrelogo.webp")) handleStreamFlashFile(server.uri(), nrelogo, sizeof(nrelogo));
+  else if (server.uri() == F("/tfllogo.webp")) handleStreamFlashFile(server.uri(), tfllogo, sizeof(tfllogo));
+  else if (server.uri() == F("/tube.webp")) handleStreamFlashFile(server.uri(), tubeicon, sizeof(tubeicon));
+  else if (server.uri() == F("/nr.webp")) handleStreamFlashFile(server.uri(), nricon, sizeof(nricon));
+  else if (server.uri() == F("/favicon.svg")) handleStreamFlashFile(server.uri(), favicon, sizeof(favicon));
+  else if (server.uri() == F("/favicon.png")) handleStreamFlashFile(server.uri(), faviconpng, sizeof(faviconpng));
+  else sendResponse(404,F("Not Found"));
 }
 
 // Send some useful system & station information to the browser
@@ -1833,14 +1749,16 @@ void handleInfo() {
 
 // Stream the index.htm page unless we're in first time setup and need the api keys
 void handleRoot() {
-  if (!nrToken[0] && LittleFS.exists(F("/keys.htm"))) handleStreamFile(F("/keys.htm"));
-  else if (nrToken[0] && LittleFS.exists(F("/index.htm"))) handleStreamFile(F("/index.htm"));
-  else handleInfo();
+  if (!nrToken[0]) {
+    if (LittleFS.exists(F("/keys_d.htm"))) handleStreamFile(F("/keys_d.htm")); else handleStreamFlashFile("/keys.htm",keyshtm,sizeof(keyshtm));
+  } else {
+    if (LittleFS.exists(F("/index_d.htm"))) handleStreamFile(F("/index_d.htm")); else handleStreamFlashFile("/index.htm",indexhtm,sizeof(indexhtm));
+  }
 }
 
 // Send the firmware version to the client (called from index.htm)
 void handleFirmwareInfo() {
-  String response = "{\"firmware\":\"B" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + "-W" + String(waCurrentMajor) + "." + String(waCurrentMinor) + F(" Build:") + getBuildTime() + F("\"}");
+  String response = "{\"firmware\":\"B" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR) + "-W" + String(WEBAPPVER_MAJOR) + "." + String(WEBAPPVER_MINOR) + F(" Build:") + getBuildTime() + F("\"}");
   server.send(200,contentTypeJson,response);
 }
 
@@ -1897,10 +1815,7 @@ void handleOtaUpdate() {
   u8g2.sendBuffer();
 
   if (ghUpdate.getLatestRelease()) {
-    if (checkForWebAppUpdate(true)) {
-      // Only check for firmware update if the webapp went OK
-      checkForFirmwareUpdate();
-    }
+    checkForFirmwareUpdate();
   } else {
     for (int i=10;i>=0;i--) {
       showUpdateCompleteScreen("Firmware Update Check Failed","Unable to retrieve latest release information.",ghUpdate.getLastError().c_str(),i,false);
@@ -2403,16 +2318,12 @@ void setup(void) {
   if (firmwareUpdates) {
     progressBar(F("Checking for firmware updates"),45);
     if (ghUpdate.getLatestRelease()) {
-      if (checkForFirmwareUpdate()) {
-        // Only check for webapp updates if the firmware update did not fail.
-        checkForWebAppUpdate(false);
-      }
+      checkForFirmwareUpdate();
     } else {
       for (int i=10;i>=0;i--) {
         showUpdateCompleteScreen("Firmware Update Check Failed","Unable to retrieve latest release information.",ghUpdate.getLastError().c_str(),i,false);
         delay(1000);
       }
-      log_e("FW Update failed: %s\n",ghUpdate.getLastError().c_str());
       u8g2.clearDisplay();
       drawStartupHeading();
       u8g2.sendBuffer();
