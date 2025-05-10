@@ -100,7 +100,7 @@ int TfLdataClient::updateArrivals(rdStation *station, stnMessages *messages, con
                 ticker = millis()+800;
             }
         }
-        delay(5);
+        delay(25);
     }
     httpsClient.stop();
     if (millis() >= dataSendTimeout) {
@@ -172,7 +172,7 @@ int TfLdataClient::updateArrivals(rdStation *station, stnMessages *messages, con
                 ticker = millis()+800;
             }
         }
-        delay(5);
+        delay(25);
     }
     httpsClient.stop();
     if (millis() >= dataSendTimeout) {
@@ -198,6 +198,11 @@ int TfLdataClient::updateArrivals(rdStation *station, stnMessages *messages, con
                 break;
             }
         }
+    }
+
+    // Remove line break formatting from messages
+    for (int i=0;i<xMessages.numMessages;i++) {
+        replaceWord(xMessages.messages[i],"\\n","");
     }
 
     // Update the callers data with the new data
@@ -234,6 +239,29 @@ bool TfLdataClient::pruneFromPhrase(char* input, const char* target) {
         return true;
     }
     return false;
+}
+
+//
+// Function to replace occurrences of a word or phrase in a character array
+//
+void TfLdataClient::replaceWord(char* input, const char* target, const char* replacement) {
+    // Find the first occurrence of the target word
+    char* pos = strstr(input, target);
+    while (pos) {
+        // Calculate the length of the target word
+        size_t targetLen = strlen(target);
+        // Calculate the length difference between target and replacement
+        int diff = strlen(replacement) - targetLen;
+
+        // Shift the remaining characters to accommodate the replacement
+        memmove(pos + strlen(replacement), pos + targetLen, strlen(pos + targetLen) + 1);
+
+        // Copy the replacement word into the position
+        memcpy(pos, replacement, strlen(replacement));
+
+        // Find the next occurrence of the target word
+        pos = strstr(pos + strlen(replacement), target);
+    }
 }
 
 // Custom comparator function to compare time to station

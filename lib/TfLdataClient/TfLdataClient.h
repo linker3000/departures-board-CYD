@@ -44,6 +44,7 @@ class TfLdataClient: public JsonListener {
 
         //tflClientCallback Xcb;
         bool pruneFromPhrase(char* input, const char* target);
+        void replaceWord(char* input, const char* target, const char* replacement);
         static bool compareTimes(const ugService& a, const ugService& b);
 
     public:
