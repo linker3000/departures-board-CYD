@@ -101,6 +101,7 @@ bool github::getLatestRelease() {
     return true;
 }
 
+/*
 bool github::downloadAssetToLittleFS(String url, String filename) {
 
     HTTPClient http;
@@ -169,10 +170,8 @@ bool github::downloadAssetToLittleFS(String url, String filename) {
         if (http.hasHeader("x-ms-blob-content-md5")) {
             // Convert the base64 encoded MD5 back to a hex string
             String md5Server = md5.base64ToHex(String(http.header("x-ms-blob-content-md5")));
-            log_d(" - MD5 Hex: %s\n", md5Hex.c_str());
             // Calculate the MD5 of the downloaded file
             String md5Download = md5.calculateFileMD5("/tempfile");
-            log_d(" - MD5 download: %s\n", md5Download.c_str());
             if (md5Download != md5Server) {
                 lastErrorMsg = "\"" + filename.substring(1) + F("\" MD5 mismatch (corruption)");
                 return false;
@@ -198,6 +197,7 @@ bool github::downloadAssetToLittleFS(String url, String filename) {
 
     return result;
 }
+*/
 
 String github::getLastError() {
     return lastErrorMsg;
