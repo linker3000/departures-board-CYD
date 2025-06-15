@@ -30,7 +30,7 @@
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
-#include <HTTPUpdateGithub.h>
+#include <HTTPUpdateGitHub.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
