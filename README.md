@@ -69,7 +69,9 @@ esptool.py --chip esp32 --baud 460800 write_flash -z \
   0x10000 firmware.bin
 ```
 
-The tool should automatically find the correct serial port. If it fails to, you can manually specify the correct port by adding *--port COMx* (replace *COMx* with your actual port, e.g. COM3, /dev/ttyUSB0, etc.). If using the pre-compiled esptool.exe version on windows, you will need to type the entire command on one line:
+The tool should automatically find the correct serial port. If it fails to, you can manually specify the correct port by adding *--port COMx* (replace *COMx* with your actual port, e.g. COM3, /dev/ttyUSB0, etc.).
+
+If using the pre-compiled esptool.exe version on Windows, save the esptool.exe and the four firmware (.bin) files to the same directory. Open a command prompt (Windows Key + R, type cmd and press enter) and change to the directory you saved the files into. Now type the following command on one line and press enter:
 ```
 .\esptool --chip esp32 --baud 460800 write_flash -z 0x1000 bootloader.bin 0xe000 boot_app0.bin 0x8000 partitions.bin 0x10000 firmware.bin
 ```
