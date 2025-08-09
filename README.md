@@ -1,6 +1,28 @@
 # departures-board [![License Badge](https://img.shields.io/badge/BY--NC--SA%204.0%20License-grey?style=flat&logo=creativecommons&logoColor=white)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-This is an ESP32 based mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API and, new in v1.2, replicating London Underground Arrivals boards using data provided by TfL . This implementation uses a 3.12" OLED display panel with SSD1322 display controller onboard. STL files are also provided for 3D printing the custom desktop case.
+**09-Aug-2025: I have just forked the source project and have not begun to work on modifying the code to run on the CYD. As long as this message is here assume the code is not yet working or done.**
+
+**Running update: 09-Aug-2025**
+
+Just started updating the readme to update or remove references to the original OLED dislay code version and other features etc. that won't transfer to the CYD. As this is is a work in progress do not buy anything or make any plans based on what you read here while this message is in place.
+
+NO CODE REFACTORING HAS BEEN DONE YET
+
+Todo:
+
+  * Remove unneeded files - eg: stlp rinting files.
+  * Update description text (readme) - started, not finished 
+  * Update the code to run on the CYD!! ...
+  * Check over web configutator
+  * Confirm data fetches work
+  * Get rudamentary info on TFT display. 
+  * Decide on display format options.
+  * Add other features!?
+  * Touch screen control?
+----------
+This is a form of gadec-uk's excellent work, adapted to run on a 2.8" Cheap Yellow Display (CYD), which is an ESP32-based module with 2.8" TFT display.
+
+This is a mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API and London Underground Arrivals boards using data provided by TfL.
 
 ## Features
 * All processing is done onboard by the ESP32 processor
@@ -14,44 +36,21 @@ This is an ESP32 based mini Departures Board replicating those at many UK railwa
 * Fully-featured Web UI - choose any station on the UK network / London Tube & DLR network
 * Automatic firmware updates (optional)
 * Displays the weather at the selected location (optional)
-* STL files provided for custom 3D printed case (**updated: now USB-C compatible**)
-
-This short video demonstrates the Departures Board in action...
-[![Departures Board Demo Video](https://github.com/user-attachments/assets/409b9a82-33a9-4351-ac87-f7e44ac56795)](https://youtu.be/N3pHk6yqwvo)
 
 ## Quick Start
 
 ### What you'll need
 
-1. An ESP32 D1 Mini board (or clone) - either USB-C or Micro-USB version with CH9102 recommended. Cost around £3 from [AliExpress](https://www.aliexpress.com/item/1005005972627549.html).
-2. A 3.12" 256x64 OLED Display Panel with SSD1322 display controller onboard. Cost around £12 from [AliExpress](https://www.aliexpress.com/item/1005005985371717.html).
-3. A 3D printed case using the [STL](https://github.com/gadec-uk/departures-board/tree/main/stl) files provided. If you don't have a 3D printer, there are several services you can use to get one printed.
-4. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
-5. Optionally, an OpenWeather Map API token to display weather conditions at the selected station (these are also free, sign-up for a free developer account [here](https://home.openweathermap.org/users/sign_up)).
-6. Optionally, a TfL Open Data API token to display the London Underground/DLR Arrivals Board. These are free, sign-up for a free developer account [here](https://api-portal.tfl.gov.uk/signup)
-7. Some intermediate soldering skills.
+1. A 2.8" Cheap Yellow Display (CYD). NB: So far I have not identified the controller chip used on the 3.5" versions and have not been able to drive them with ANY code.
+2. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
+3. Optionally, an OpenWeather Map API token to display weather conditions at the selected station (these are also free, sign-up for a free developer account [here](https://home.openweathermap.org/users/sign_up)).
+4. Optionally, a TfL Open Data API token to display the London Underground/DLR Arrivals Board. These are free, sign-up for a free developer account [here](https://api-portal.tfl.gov.uk/signup)
 
 <img src="https://github.com/user-attachments/assets/5ae96896-62cc-4880-a3a8-79ac505e7605" align="center">
 
-### Preparing the OLED display for 4-Wire SPI Mode
-
-<img src="https://github.com/user-attachments/assets/cd176b57-ced6-486b-9a0d-9eee150dc813" align="right">
-As supplied, the display is usually shipped with 8-bit 80XX mode enabled. This needs to be changed to 4-Wire SPI mode by removing one link and adding another (the image shows where to make these changes on the rear of the circuit board).
-
-### Wiring Guide
-
-Solder the 4 SPI connections, plus power and ground. The wires **MUST** be soldered to the **BACK** of the ESP32 Mini board (the side without the components) to enable it to sit in place in the case.
-
-| OLED Pin | ESP32 Mini Pin |
-|:---------|:-------------:|
-| 1 VSS | GND |
-| 2 VCC_IN | 3.3v |
-| 4 D0/CLK | IO18 |
-| 5 D1/DIN | IO23 |
-| 14 D/C# | IO5 |
-| 16 CS# | IO26 |
-
 ### Installing the firmware
+
+(NOT YET UPDATED FOR CYD)
 
 The project uses the Arduino framework and the ESP32 v3.2.0 core. If you want to build from source, you'll need [PlatformIO](https://platformio.org).
 
