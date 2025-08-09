@@ -2,6 +2,8 @@
 
 **09-Aug-2025: I have just forked the source project and have not begun to work on modifying the code to run on the CYD. As long as this message is here assume the code is not yet working or done.**
 
+----------
+
 **Running update: 09-Aug-2025**
 
 Just started working on readme to update or remove references to the original OLED dislay code version and other features etc. that won't transfer to the CYD. As this is is a work in progress do not buy anything or make any plans based on what you read here while this message is in place.
