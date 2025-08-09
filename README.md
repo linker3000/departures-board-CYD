@@ -21,7 +21,9 @@ Todo:
   * Add other features!?
   * Touch screen control?
 ----------
-This is a form of gadec-uk's excellent work, adapted to run on a 2.8" Cheap Yellow Display (CYD), which is an ESP32-based module with 2.8" TFT display.
+This is a fork of gadec-uk's excellent work, adapted to run on a 2.8" Cheap Yellow Display (CYD), which is an ESP32-based module with 2.8" TFT display with touchscreen.
+
+The original project is here: https://github.com/gadec-uk/departures-board
 
 This is a mini Departures Board replicating those at many UK railway stations using data provided by National Rail's public API and London Underground Arrivals boards using data provided by TfL.
 
