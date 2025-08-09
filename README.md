@@ -4,19 +4,20 @@
 
 **Running update: 09-Aug-2025**
 
-Just started updating the readme to update or remove references to the original OLED dislay code version and other features etc. that won't transfer to the CYD. As this is is a work in progress do not buy anything or make any plans based on what you read here while this message is in place.
+Just started working on readme to update or remove references to the original OLED dislay code version and other features etc. that won't transfer to the CYD. As this is is a work in progress do not buy anything or make any plans based on what you read here while this message is in place.
 
 NO CODE REFACTORING HAS BEEN DONE YET
 
 Todo:
 
-  * Remove unneeded files - eg: stlp rinting files.
+  * Remove unneeded files - eg: stl printing files.
   * Update description text (readme) - started, not finished 
   * Update the code to run on the CYD!! ...
-  * Check over web configutator
+  * Check over web configurator
   * Confirm data fetches work
   * Get rudamentary info on TFT display. 
   * Decide on display format options.
+  * Create new display renderings
   * Add other features!?
   * Touch screen control?
 ----------
@@ -45,8 +46,6 @@ This is a mini Departures Board replicating those at many UK railway stations us
 2. A National Rail Darwin Lite API token (these are free of charge - request one [here](https://realtime.nationalrail.co.uk/OpenLDBWSRegistration)).
 3. Optionally, an OpenWeather Map API token to display weather conditions at the selected station (these are also free, sign-up for a free developer account [here](https://home.openweathermap.org/users/sign_up)).
 4. Optionally, a TfL Open Data API token to display the London Underground/DLR Arrivals Board. These are free, sign-up for a free developer account [here](https://api-portal.tfl.gov.uk/signup)
-
-<img src="https://github.com/user-attachments/assets/5ae96896-62cc-4880-a3a8-79ac505e7605" align="center">
 
 ### Installing the firmware
 
